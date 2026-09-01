@@ -213,7 +213,7 @@
   .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
   .topbar{
     padding:18px 28px; border-bottom:1px solid var(--border);
-    display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
     background:var(--bg-elevated);
   }
   .topbar h1{ font-size:20px; margin:0; }
@@ -286,7 +286,7 @@
   .gantt-fixed{
     width:280px; flex:none; border-right:1px solid var(--border); background:var(--bg-elevated);
   }
-  .gantt-scroll{ flex:1; overflow-x:auto; overflow-y:hidden; }
+  .gantt-scroll{ flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; }
   .gantt-row{
     display:flex; align-items:center; height:34px; border-bottom:1px solid var(--border);
     padding:0 14px; gap:8px; font-size:12.5px;
@@ -382,9 +382,11 @@
   .config-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
   .config-field label{ display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; }
 
+  #topTitle{ min-width:0; flex-wrap:wrap; row-gap:4px; }
   .rename-input{
     font-family:"DM Sans"; font-weight:700; font-size:20px; border:1px solid transparent;
-    background:transparent; color:var(--ink); border-radius:7px; padding:2px 6px; max-width:420px;
+    background:transparent; color:var(--ink); border-radius:7px; padding:2px 6px;
+    max-width:420px; min-width:0; flex:1 1 auto;
   }
   .rename-input:hover{ border-color:var(--border); }
   .rename-input:focus{ border-color:var(--accent); outline:none; background:var(--bg-elevated); }
@@ -421,8 +423,63 @@
   }
   :root[data-theme="dark"] .tooltip, @media (prefers-color-scheme:dark){ .tooltip{ } }
 
+  /* ---------- responsive: Tablet & Smartphone ---------- */
+  .nav-toggle{
+    display:none; flex:none; width:36px; height:36px; border-radius:8px;
+    border:1px solid var(--border-strong); background:var(--bg-elevated); color:var(--ink);
+    cursor:pointer; align-items:center; justify-content:center; font-size:16px;
+  }
+  .nav-toggle:hover{ background:var(--bg-sunken); }
+  .side-backdrop{
+    display:none; position:fixed; inset:0; z-index:59;
+    background:color-mix(in srgb, var(--ink) 45%, transparent);
+  }
+
   @media (max-width: 860px){
-    .side{ display:none; }
+    .nav-toggle{ display:flex; }
+    .side{
+      position:fixed; top:0; left:0; z-index:60; width:min(280px, 82vw);
+      box-shadow:var(--shadow); transform:translateX(-100%);
+      transition:transform .2s ease; height:100vh;
+    }
+    .side.collapsed{ width:min(280px, 82vw); } /* Einklapp-Modus ist auf Mobilgeräten sinnlos — Drawer bleibt volle Breite */
+    .side.collapsed .brand-labels{ display:block !important; }
+    .side.collapsed .nav-name{ display:block !important; }
+    .side.collapsed .nav-del{ display:flex !important; }
+    .side.collapsed .nav-label{ display:block !important; }
+    .side.collapsed .nav-add .add-label{ display:inline !important; }
+    .side.collapsed .sync-bar{ display:flex !important; }
+    .side.collapsed .side-foot{ display:flex !important; }
+    .side.collapsed .brand{ justify-content:flex-start; padding:20px 14px 14px; }
+    .side.collapsed .nav-item{ justify-content:flex-start; padding:8px 10px; }
+    .side.collapsed .nav-add{ justify-content:flex-start; padding:8px 10px; margin:8px 10px 4px; }
+    .side.collapsed .side-expand{ display:none; }
+    .side-toggle{ display:none; } /* auf Mobilgeräten schließt man den Drawer über das Backdrop bzw. den Menü-Button */
+    .side.mobile-open{ transform:translateX(0); }
+    .side.mobile-open ~ .side-backdrop,
+    .side-backdrop.show{ display:block; }
+
+    .topbar{ padding:14px 16px; gap:10px; }
+    .topbar h1{ font-size:17px; }
+    .view{ padding:16px 14px 40px; }
+    .cards{ grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:10px; }
+    .card{ padding:11px 13px; }
+    .card-value{ font-size:20px; }
+    .panel-head{ padding:12px 14px; }
+    .panel-body{ padding:13px 14px; }
+    .gantt-fixed{ width:190px; }
+    .gantt-fixed .gantt-row{ gap:5px; padding:0 8px; }
+    .gantt-fixed .pill{ padding:1px 5px; font-size:9.5px; }
+    table.tasks{ min-width:760px; } /* erzwingt horizontales Scrollen statt gequetschter Spalten */
+  }
+
+  @media (max-width: 480px){
+    .topbar{ flex-wrap:wrap; }
+    .topbar-actions{ flex-wrap:wrap; width:100%; }
+    .cards{ grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); }
+    .auth-card{ padding:22px 18px; }
+    .gantt-fixed{ width:150px; }
+    .gantt-name{ font-size:11.5px; }
   }
 
   /* ---------- Cloud-Sync (Supabase) ---------- */
@@ -549,14 +606,18 @@
 
   <main class="main">
     <div class="topbar">
-      <div>
-        <h1 id="topTitle">Übersicht</h1>
-        <div class="subtitle" id="topSubtitle">Alle Releases auf einer Zeitachse</div>
+      <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+        <button class="nav-toggle" id="navToggle" title="Navigation öffnen" aria-label="Navigation öffnen">&#9776;</button>
+        <div style="min-width:0;">
+          <h1 id="topTitle">Übersicht</h1>
+          <div class="subtitle" id="topSubtitle">Alle Releases auf einer Zeitachse</div>
+        </div>
       </div>
       <div class="topbar-actions" id="topActions"></div>
     </div>
     <div class="view" id="viewRoot"></div>
   </main>
+  <div class="side-backdrop" id="sideBackdrop"></div>
 </div>
 
 <div class="tooltip" id="tooltip"></div>
@@ -2968,6 +3029,32 @@
     saveState();
   }
 
+  /* ---------------- Mobile-Navigation (Off-Canvas-Drawer unter 860px) ----------------
+     Auf schmalen Bildschirmen ist für die Seitenleiste kein dauerhaft sichtbarer Platz —
+     stattdessen blendet sie als Drawer über den Inhalt ein/aus, gesteuert über eine
+     eigene Klasse ("mobile-open"), unabhängig vom Ein-/Ausklapp-Zustand für Desktop
+     ("collapsed"). Bewusst kein Teil von "state" — rein visueller UI-Zustand pro Sitzung.
+  */
+  function setMobileNavOpen(open){
+    const side = document.getElementById("sideNav");
+    const backdrop = document.getElementById("sideBackdrop");
+    if(!side || !backdrop) return;
+    side.classList.toggle("mobile-open", open);
+    backdrop.classList.toggle("show", open);
+  }
+
+  function initMobileNav(){
+    const toggle = document.getElementById("navToggle");
+    const backdrop = document.getElementById("sideBackdrop");
+    if(toggle) toggle.onclick = () => setMobileNavOpen(!document.getElementById("sideNav").classList.contains("mobile-open"));
+    if(backdrop) backdrop.onclick = () => setMobileNavOpen(false);
+    // Nach Auswahl eines Menüpunkts (Release/Übersicht) den Drawer auf schmalen Bildschirmen schließen
+    document.getElementById("navList").addEventListener("click", (e) => {
+      if(window.innerWidth > 860) return;
+      if(e.target.closest(".nav-item")) setMobileNavOpen(false);
+    });
+  }
+
   /* ===================== Cloud-Sync (Supabase: Datenbank + Auth + Realtime) =====================
      Optional: nur aktiv, wenn window.RELEASE_RADAR_CONFIG.enabled === true (siehe HTML-Kopf).
      Architektur: jedes Release entspricht einer Zeile in der Postgres-Tabelle "releases"
@@ -3426,6 +3513,7 @@
     document.getElementById("sideToggle").onclick = () => setSidebarCollapsed(true);
     document.getElementById("sideExpand").onclick = () => setSidebarCollapsed(false);
     document.getElementById("brandMarkToggle").onclick = () => setSidebarCollapsed(!state.sidebarCollapsed);
+    initMobileNav();
 
     renderAll();
 
