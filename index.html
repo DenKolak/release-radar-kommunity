@@ -715,7 +715,7 @@
 <script>
   window.RELEASE_RADAR_CONFIG = {
     enabled: true,
-    supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/", // z. B. https://abcdefgh.supabase.co
+    supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/",
     supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiamRoamVwbGxxeWRhZGFndG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3NTI4NTgsImV4cCI6MjEwMzMyODg1OH0.-zPhRT2GMUmzWtlVzF-80deEwqlBqKO4nxRDBbbYYuw"
   };
 </script>
@@ -3127,15 +3127,25 @@
   // läuft die Microsoft-Anmeldung deshalb stattdessen über ein eigenes Popup-Fenster.
   const IS_EMBEDDED = (function(){ try{ return window.self !== window.top; }catch(e){ return true; } })();
 
-  // Lädt bei Bedarf das offizielle Microsoft-Teams-JavaScript-SDK nach und prüft, ob die App
-  // tatsächlich innerhalb von Microsoft Teams läuft (nicht jedes iFrame ist Teams, z. B.
-  // Confluence). Liefert bei Erfolg das SDK-Objekt zurück, sonst null — mit kurzem Timeout,
-  // damit die Anmeldung außerhalb von Teams nicht unnötig lange wartet. Wird gebraucht, um das
-  // Anmelde-Popup über den von Teams empfohlenen Weg zu öffnen (in der "neuen" wie "klassischen"
-  // Teams-Desktop-App zuverlässiger als ein einfaches window.open).
+  // Merker, den das Hauptfenster (der eingebettete Teams-Tab) im localStorage setzt, kurz bevor
+  // es das Anmelde-Popup öffnet. Da localStorage pro Origin geteilt wird, kann das Popup — sobald
+  // die Anmeldung dort abgeschlossen ist — daran zuverlässig erkennen "ich bin das Popup, nicht
+  // die normale App-Instanz". Das ist nötig, weil window.opener sich in der Teams-Desktop-App bei
+  // über authentication.authenticate() geöffneten Anmeldefenstern NICHT verlässlich setzen lässt
+  // (genau das war die Ursache dafür, dass sich das Popup zuvor nicht automatisch geschlossen hat,
+  // sondern stattdessen die komplette App im Popup selbst angezeigt wurde).
+  const SSO_POPUP_FLAG = "release-radar-sso-popup-pending";
+
+  // Lädt bei Bedarf das offizielle Microsoft-Teams-JavaScript-SDK nach und prüft, ob dieses
+  // Fenster tatsächlich von Microsoft Teams verwaltet wird (nicht jedes iFrame ist Teams, z. B.
+  // Confluence; und auch das separate Anmelde-Popup-Fenster selbst muss das prüfen können, obwohl
+  // es KEIN eingebettetes iFrame ist). Liefert bei Erfolg das SDK-Objekt zurück, sonst null — mit
+  // kurzem Timeout, damit z. B. eine normale Anmeldung außerhalb von Teams nicht unnötig lange
+  // wartet. Absichtlich NICHT auf IS_EMBEDDED beschränkt: das Anmelde-Popup ist ein eigenes
+  // Top-Level-Fenster (window.self === window.top), muss das Teams-SDK aber trotzdem laden
+  // können, um sich über authentication.notifySuccess() korrekt selbst zu schließen.
   let teamsSdkPromise = null;
   function loadTeamsSdkIfInTeams(){
-    if(!IS_EMBEDDED) return Promise.resolve(null);
     if(teamsSdkPromise) return teamsSdkPromise;
     teamsSdkPromise = new Promise((resolve) => {
       let done = false;
@@ -3224,13 +3234,29 @@
       currentUser = session ? session.user : null;
       updateSyncUI();
       if(currentUser && !hadUser){
-        // Läuft dieses Fenster selbst als Popup (von signInSso() für eingebettete Kontexte
-        // geöffnet), dann NICHT die App hier im Popup aufbauen — stattdessen das Popup
-        // schließen bzw. Teams informieren. Das eigentliche Teams-Tab-Fenster bekommt die
-        // neue Session automatisch über supabase-js' eingebauten storage-Event-Abgleich
-        // (beide Fenster benutzen denselben localStorage) und reagiert selbst mit diesem
-        // Zweig auf sein eigenes onAuthStateChange.
-        if(window.opener){
+        // Läuft dieses Fenster selbst als das Anmelde-Popup (von signInSso() für eingebettete
+        // Kontexte geöffnet), dann NICHT die App hier im Popup aufbauen — stattdessen das Popup
+        // schließen bzw. Teams informieren. Erkennung bewusst NICHT über window.opener (das ist
+        // in der Teams-Desktop-App bei über authentication.authenticate() geöffneten Fenstern
+        // unzuverlässig — genau das führte zuvor dazu, dass sich das Popup nicht schloss, sondern
+        // die komplette App darin anzeigte), sondern über einen im localStorage hinterlegten
+        // Merker: das Hauptfenster setzt ihn kurz vor dem Öffnen des Popups, und genau das Fenster,
+        // das die Anmeldung tatsächlich abschließt (also das Popup selbst, dessen eigener
+        // Redirect gerade zu Ende gelaufen ist), liest und entfernt ihn zuerst. Das eigentliche
+        // Teams-Tab-Fenster bekommt die neue Session unabhängig davon automatisch über
+        // supabase-js' eingebauten storage-Event-Abgleich (beide Fenster teilen denselben
+        // localStorage) und reagiert etwas später mit demselben Zweig auf sein eigenes
+        // onAuthStateChange — findet den Merker dann aber schon entfernt vor und baut die App
+        // normal auf.
+        let iAmPopup = false;
+        try{
+          const flagTs = Number(localStorage.getItem(SSO_POPUP_FLAG));
+          if(flagTs && (Date.now() - flagTs) < 5 * 60 * 1000){
+            iAmPopup = true;
+            localStorage.removeItem(SSO_POPUP_FLAG);
+          }
+        }catch(e){}
+        if(iAmPopup){
           loadTeamsSdkIfInTeams().then((teams) => {
             if(teams && teams.authentication && teams.authentication.notifySuccess){
               try{ teams.authentication.notifySuccess("ok"); return; }catch(e){}
@@ -3301,6 +3327,13 @@
     // Klick-Handler hier bereits ein VORAB (noch synchron) geöffnetes, leeres Popup-Fenster
     // (preOpenedPopup), das erst jetzt — nachdem die Anmelde-URL von Supabase da ist — auf die
     // eigentliche Adresse umgeleitet wird, statt window.open() erst hier neu aufzurufen.
+    //
+    // Merker setzen, damit genau das Fenster, in dem die Anmeldung tatsächlich abgeschlossen wird
+    // (das Popup), sich später selbst erkennen und schließen kann (siehe SSO_POPUP_FLAG oben).
+    // Zeitstempel statt einfachem "1", damit ein liegen gebliebener Merker aus einem abgebrochenen
+    // früheren Versuch (z. B. Browser-Absturz vor Abschluss) nicht Monate später eine ganz normale
+    // Anmeldung fälschlich als Popup einstuft.
+    try{ localStorage.setItem(SSO_POPUP_FLAG, String(Date.now())); }catch(e){}
     try{
       const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: "azure",
@@ -3331,6 +3364,10 @@
       }
       return true;
     }catch(e){
+      // Merker wieder entfernen, wenn der Versuch fehlschlägt/abgebrochen wird — sonst würde ein
+      // späterer, ganz normaler Login-Versuch fälschlich als "ich bin das Popup" erkannt.
+      try{ localStorage.removeItem(SSO_POPUP_FLAG); }catch(e2){}
+      if(preOpenedPopup){ try{ preOpenedPopup.close(); }catch(e2){} }
       showAuthFormError("Anmeldung fehlgeschlagen: " + (e && e.message ? e.message : e) + " Bitte prüfen Sie, ob Ihr Browser Popups für diese Seite erlaubt.");
       return false;
     }
