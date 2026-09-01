@@ -1,0 +1,3499 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release Radar</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23003a40'/%3E%3Ccircle cx='20' cy='20' r='13.2' fill='none' stroke='%23fff' stroke-opacity='0.45' stroke-width='1.8'/%3E%3Ccircle cx='20' cy='20' r='8.2' fill='none' stroke='%234bd8ce' stroke-opacity='0.9' stroke-width='1.8'/%3E%3Ccircle cx='20' cy='20' r='3.2' fill='none' stroke='%23fff' stroke-opacity='0.8' stroke-width='1.8'/%3E%3Cpath d='M20 20 L20 6.8 A13.2 13.2 0 0 1 29.3 25.8 Z' fill='%23f1c400' fill-opacity='0.3'/%3E%3Cline x1='20' y1='20' x2='20' y2='6.8' stroke='%23f1c400' stroke-width='2.2' stroke-linecap='round'/%3E%3Ccircle cx='26.6' cy='12.6' r='2.1' fill='%23f1c400'/%3E%3Ccircle cx='13.2' cy='26.4' r='1.6' fill='%234bd8ce' fill-opacity='0.9'/%3E%3C/svg%3E">
+<!--
+  PWA-Einbindung: manifest.webmanifest, sw.js und die drei Icon-Dateien (icon-192.png,
+  icon-512.png, icon-maskable-512.png, apple-touch-icon.png) müssen als eigenständige Dateien
+  IM SELBEN VERZEICHNIS wie diese HTML-Datei auf dem Webserver (Netlify) liegen — siehe
+  Einrichtungsanleitung, Abschnitt "PWA-Installation". Ohne diese Begleitdateien lädt die App
+  weiterhin ganz normal im Browser, nur "Installieren" und Offline-Start stehen dann nicht zur
+  Verfügung.
+-->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#003a40">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Release Radar">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap">
+<style>
+  :root{
+    /* Komm.ONE Corporate Design: Lagoon (Primär A) als Interaktionsfarbe */
+    --bg:#f4f7f7;
+    --bg-elevated:#ffffff;
+    --bg-sunken:#e9f0ef;
+    --ink:#0d2224;
+    --ink-soft:#4c5c5d;
+    --ink-faint:#889797;
+    --border:#dbe5e4;
+    --border-strong:#c1d0cf;
+    --accent:#00b2a9;
+    --accent-strong:#008481;
+    --accent-soft:#e0f5f3;
+    --accent-ink:#00625d;
+    --midnight:#003a40;
+    --success:#00965e;
+    --success-soft:#e1f5ec;
+    --warning:#a8720a;
+    --warning-soft:#fdf1cf;
+    --critical:#de3400;
+    --critical-soft:#fbe4dc;
+    --holiday:#6461c9;
+    --holiday-soft:#eaeafb;
+    --weekend:#e9edf3;
+    --today:#f0af00;
+    --shadow: 0 1px 2px rgba(0,26,28,.06), 0 8px 24px -12px rgba(0,26,28,.2);
+    --radius: 10px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1a1a;
+      --bg-elevated:#132524;
+      --bg-sunken:#0a1615;
+      --ink:#e7f1f0;
+      --ink-soft:#a7bcbb;
+      --ink-faint:#6c8281;
+      --border:#233736;
+      --border-strong:#33504e;
+      --accent:#4bd8ce;
+      --accent-strong:#8fe9e0;
+      --accent-soft:#0f302e;
+      --accent-ink:#a9ede5;
+      --midnight:#003a40;
+      --success:#5cd19d;
+      --success-soft:#12352a;
+      --warning:#e8bd5e;
+      --warning-soft:#3a2f12;
+      --critical:#ff8a5c;
+      --critical-soft:#3a1f14;
+      --holiday:#9d9aec;
+      --holiday-soft:#211f3a;
+      --weekend:#16211f;
+      --today:#f7c948;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1a1a;
+    --bg-elevated:#132524;
+    --bg-sunken:#0a1615;
+    --ink:#e7f1f0;
+    --ink-soft:#a7bcbb;
+    --ink-faint:#6c8281;
+    --border:#233736;
+    --border-strong:#33504e;
+    --accent:#4bd8ce;
+    --accent-strong:#8fe9e0;
+    --accent-soft:#0f302e;
+    --accent-ink:#a9ede5;
+    --midnight:#003a40;
+    --success:#5cd19d;
+    --success-soft:#12352a;
+    --warning:#e8bd5e;
+    --warning-soft:#3a2f12;
+    --critical:#ff8a5c;
+    --critical-soft:#3a1f14;
+    --holiday:#9d9aec;
+    --holiday-soft:#211f3a;
+    --weekend:#16211f;
+    --today:#f7c948;
+    color-scheme: dark;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"DM Sans", "Segoe UI", Arial, sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.disp{
+    font-family:"DM Sans","Segoe UI",Arial,sans-serif;
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+  .mono{ font-family:"DM Sans", "Segoe UI", Arial, sans-serif; font-variant-numeric: tabular-nums; }
+  button, input, select{ font-family:inherit; font-size:inherit; color:inherit; }
+  ::selection{ background:var(--accent-soft); }
+  a{ color:var(--accent); }
+
+  /* ---------- shell ---------- */
+  .shell{ display:flex; min-height:100vh; }
+  .side{
+    width:242px; flex:none;
+    background:var(--bg-elevated);
+    border-right:1px solid var(--border);
+    display:flex; flex-direction:column;
+    position:sticky; top:0; height:100vh;
+    transition: width .16s ease;
+    overflow:hidden;
+  }
+  .side.collapsed{ width:60px; }
+  .brand{
+    padding:20px 14px 14px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .side:not(.collapsed) .brand{ border-bottom:1px solid var(--border); }
+  .brand-mark{
+    width:30px; height:30px; border-radius:8px;
+    background:var(--midnight);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-family:"DM Sans"; font-weight:700; font-size:14px;
+    flex:none; cursor:pointer;
+  }
+  .brand-text{ font-family:"DM Sans"; font-weight:700; font-size:15.5px; letter-spacing:-.01em; white-space:nowrap; }
+  .brand-sub{ font-size:11px; color:var(--ink-faint); margin-top:1px; white-space:nowrap; }
+  .brand-labels{ flex:1; min-width:0; overflow:hidden; }
+  .side-toggle{
+    flex:none; width:24px; height:24px; border-radius:6px; border:1px solid var(--border);
+    background:var(--bg); color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; justify-content:center;
+    font-size:12px;
+  }
+  .side-toggle:hover{ background:var(--bg-sunken); color:var(--ink); }
+  .side.collapsed .side-toggle{ display:none; }
+  .side.collapsed .brand{ justify-content:center; padding:20px 0 14px; border-bottom:1px solid var(--border); }
+  .side.collapsed .brand-labels{ display:none; }
+  .side-expand{
+    display:none; width:100%; padding:10px 0; border:none; background:transparent; color:var(--ink-faint);
+    cursor:pointer; font-size:14px;
+  }
+  .side.collapsed .side-expand{ display:block; }
+  .side-expand:hover{ color:var(--accent); }
+
+  .nav{ flex:1; overflow-y:auto; overflow-x:hidden; padding:10px; display:flex; flex-direction:column; gap:2px; }
+  .nav-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-faint); padding:14px 10px 6px; white-space:nowrap; }
+  .side.collapsed .nav-label{ display:none; }
+  .nav-item{
+    display:flex; align-items:center; gap:9px;
+    padding:8px 10px; border-radius:8px; cursor:pointer;
+    color:var(--ink-soft); border:1px solid transparent;
+    font-size:13.5px; font-weight:500;
+    position:relative;
+  }
+  .side.collapsed .nav-item{ justify-content:center; padding:9px 0; }
+  .nav-item:hover{ background:var(--bg-sunken); color:var(--ink); }
+  .nav-item.active{ background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
+  .nav-dot{ width:8px; height:8px; border-radius:50%; flex:none; background:var(--ink-faint); }
+  .nav-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .side.collapsed .nav-name, .side.collapsed .nav-del{ display:none; }
+  .nav-del{
+    opacity:0; width:18px; height:18px; border:none; background:transparent; color:var(--ink-faint);
+    cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .nav-item:hover .nav-del{ opacity:1; }
+  .nav-del.confirm{ opacity:1; background:var(--critical-soft); color:var(--critical); width:auto; padding:0 6px; font-size:10.5px; font-weight:700; border-radius:5px; }
+  .nav-del:hover{ background:var(--critical-soft); color:var(--critical); }
+  .nav-add{
+    margin:8px 10px 4px; padding:8px 10px; border-radius:8px;
+    border:1px dashed var(--border-strong); background:transparent; color:var(--ink-soft);
+    cursor:pointer; font-size:13px; font-weight:600; text-align:left;
+    display:flex; align-items:center; gap:8px; white-space:nowrap; overflow:hidden;
+  }
+  .side.collapsed .nav-add{ justify-content:center; padding:8px 0; margin:8px 8px 4px; }
+  .side.collapsed .nav-add .add-label{ display:none; }
+  .nav-add:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+
+  .side-foot{ padding:12px; border-top:1px solid var(--border); display:flex; gap:6px; }
+  .side.collapsed .side-foot{ display:none; }
+  .theme-btn{
+    flex:1; padding:7px 8px; border-radius:7px; border:1px solid var(--border);
+    background:var(--bg); color:var(--ink-soft); cursor:pointer; font-size:12px; font-weight:600;
+  }
+  .theme-btn.active{ border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft); }
+
+  .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .topbar{
+    padding:18px 28px; border-bottom:1px solid var(--border);
+    display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+    background:var(--bg-elevated);
+  }
+  .topbar h1{ font-size:20px; margin:0; }
+  .topbar .subtitle{ color:var(--ink-faint); font-size:12.5px; margin-top:3px; }
+  .topbar-actions{ display:flex; gap:8px; align-items:center; }
+
+  .view{ padding:24px 28px 60px; flex:1; }
+  .view[hidden]{ display:none; }
+
+  /* ---------- buttons / inputs ---------- */
+  .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:8px 13px; border-radius:8px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); color:var(--ink); cursor:pointer;
+    font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .btn:hover{ background:var(--bg-sunken); }
+  .btn-primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn-primary:hover{ background:var(--accent-strong); }
+  .btn-ghost{ border-color:transparent; background:transparent; }
+  .btn-ghost:hover{ background:var(--bg-sunken); }
+  .btn-sm{ padding:5px 9px; font-size:12px; border-radius:7px; }
+  .btn-danger{ color:var(--critical); }
+  .btn-danger:hover{ background:var(--critical-soft); }
+
+  select.field, input.field{
+    padding:7px 10px; border-radius:7px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); color:var(--ink);
+  }
+  input.field[type="date"]{ font-family:"DM Sans", monospace; }
+
+  /* ---------- cards / metrics ---------- */
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:12px; margin-bottom:22px; }
+  .card{
+    background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; box-shadow:var(--shadow);
+  }
+  .card-label{ font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-faint); font-weight:600; }
+  .card-value{ font-family:"DM Sans"; font-weight:700; font-size:24px; margin-top:6px; }
+  .card-sub{ font-size:12px; color:var(--ink-soft); margin-top:3px; }
+
+  .panel{
+    background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); margin-bottom:20px; overflow:hidden;
+  }
+  .panel-head{
+    padding:14px 18px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  .panel-head h2{ font-size:15px; margin:0; }
+  .panel-head .hint{ font-size:12px; color:var(--ink-faint); }
+  .panel-body{ padding:16px 18px; }
+
+  /* ---------- pills / badges ---------- */
+  .pill{
+    display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:99px;
+    font-size:11.5px; font-weight:600;
+  }
+  .pill-success{ background:var(--success-soft); color:var(--success); }
+  .pill-warning{ background:var(--warning-soft); color:var(--warning); }
+  .pill-critical{ background:var(--critical-soft); color:var(--critical); }
+  .pill-muted{ background:var(--bg-sunken); color:var(--ink-soft); }
+  .pill-accent{ background:var(--accent-soft); color:var(--accent-ink); }
+
+  .progress{ height:7px; border-radius:99px; background:var(--bg-sunken); overflow:hidden; }
+  .progress > i{ display:block; height:100%; background:var(--success); border-radius:99px; }
+
+  /* ---------- gantt ---------- */
+  .gantt-wrap{ display:flex; align-items:flex-start; border-top:1px solid var(--border); max-height:min(560px, 65vh); overflow-y:auto; }
+  .gantt-fixed{
+    width:280px; flex:none; border-right:1px solid var(--border); background:var(--bg-elevated);
+  }
+  .gantt-scroll{ flex:1; overflow-x:auto; overflow-y:hidden; }
+  .gantt-row{
+    display:flex; align-items:center; height:34px; border-bottom:1px solid var(--border);
+    padding:0 14px; gap:8px; font-size:12.5px;
+  }
+  .gantt-fixed .gantt-row{ padding:0 12px; }
+  .gantt-row.head{ height:40px; background:var(--bg-sunken); font-weight:700; font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; position:sticky; top:0; z-index:3; }
+  .gantt-row.today-row{ background: color-mix(in srgb, var(--today) 6%, transparent); }
+  .gantt-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .gantt-track{ position:relative; height:100%; }
+  .gantt-bg{ position:absolute; inset:0; }
+  .gantt-day{ position:absolute; top:0; bottom:0; }
+  .gantt-day.weekend{ background:var(--weekend); }
+  .gantt-day.holiday{ background:var(--holiday-soft); }
+  .gantt-todayline{ position:absolute; top:0; bottom:0; width:2px; background:var(--today); z-index:5; }
+  .gantt-bar{
+    position:absolute; top:7px; height:20px; border-radius:5px; background:var(--accent);
+    display:flex; align-items:center; padding:0 8px; overflow:hidden; white-space:nowrap;
+    font-size:11px; color:#fff; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.15);
+  }
+  .gantt-bar.done{ background:var(--success); }
+  .gantt-bar.overdue{ box-shadow:0 0 0 2px var(--critical); }
+  .gantt-bar.overview{ top:9px; height:16px; border-radius:99px; }
+  .gantt-bar.overview.status-released{ background:var(--success); }
+  .gantt-bar.overview.status-active{ background:var(--accent); }
+  .gantt-bar.overview.status-open{ background:var(--ink-faint); }
+  .gantt-month-row{ position:relative; z-index:2; will-change:transform; cursor:crosshair; }
+  .gantt-month-label{
+    position:absolute; top:0; bottom:0; display:flex; align-items:center;
+    padding-left:6px; font-size:11px; font-weight:700; color:var(--ink-soft);
+    border-left:1px solid var(--border-strong);
+  }
+  .gantt-milestoneline{ position:absolute; top:0; bottom:0; width:0; border-left:2px dashed var(--warning); z-index:4; }
+  .gantt-milestone-flag{
+    position:absolute; top:-1px; transform:translateX(-50%);
+    font-size:9.5px; font-weight:700; color:var(--warning); background:var(--warning-soft);
+    padding:1px 5px; border-radius:4px; white-space:nowrap; z-index:4; letter-spacing:.02em;
+  }
+
+  /* ---------- table ---------- */
+  table.tasks{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+  table.tasks th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-faint); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--border);
+    background:var(--bg-elevated);
+  }
+  table.tasks thead tr.col-headers th{ position:sticky; top:0; z-index:4; height:31px; box-sizing:border-box; }
+  table.tasks thead tr.col-filters th{
+    position:sticky; top:31px; z-index:3; padding:5px 8px 8px; border-bottom:1px solid var(--border);
+  }
+  table.tasks th.sortable{ cursor:pointer; user-select:none; white-space:nowrap; }
+  table.tasks th.sortable:hover{ color:var(--ink); }
+  .sort-arrow{ display:inline-block; margin-left:3px; font-size:9px; color:var(--accent); }
+  .sort-arrow-hint{ color:var(--ink-faint); opacity:0; }
+  table.tasks th.sortable:hover .sort-arrow-hint{ opacity:.6; }
+  .col-filter-input{
+    width:100%; box-sizing:border-box; padding:4px 6px; border-radius:6px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); color:var(--ink); font-size:11.5px; font-weight:500; text-transform:none;
+    letter-spacing:normal;
+  }
+  .col-filter-input:focus{ border-color:var(--accent); outline:none; }
+  select.col-filter-input{ padding:4px 4px; }
+  .task-table-toolbar{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 18px; border-bottom:1px solid var(--border); background:var(--bg-sunken);
+    font-size:11.5px; color:var(--ink-faint); font-weight:600;
+  }
+  table.tasks td{ padding:6px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  table.tasks tr.done td{ color:var(--ink-faint); }
+  table.tasks tr.done .task-name{ text-decoration:line-through; text-decoration-color:var(--border-strong); }
+  table.tasks tr:hover td{ background:var(--bg-sunken); }
+  .task-name-cell{ display:flex; align-items:flex-start; gap:8px; }
+  .num-cell{ text-align:right; }
+  .num-input{
+    width:54px; padding:4px 6px; border-radius:6px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); color:var(--ink); text-align:right; font-family:"DM Sans",monospace;
+  }
+  .text-input{
+    width:100%; min-width:110px; padding:4px 7px; border-radius:6px; border:1px solid transparent;
+    background:transparent; color:var(--ink);
+  }
+  .text-input:hover{ border-color:var(--border); }
+  .text-input:focus{ border-color:var(--accent); outline:none; background:var(--bg-elevated); }
+  textarea.text-input.textarea-auto{
+    resize:none; overflow:hidden; display:block; font-family:inherit; font-size:inherit;
+    line-height:1.45; min-height:26px; margin:0;
+  }
+  .chk{ width:16px; height:16px; accent-color:var(--success); cursor:pointer; }
+  .date-cell{ font-family:"DM Sans",monospace; font-size:12px; color:var(--ink-soft); white-space:nowrap; }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--ink-soft); align-items:center; }
+  .legend-swatch{ width:12px; height:12px; border-radius:3px; display:inline-block; margin-right:5px; vertical-align:-2px; }
+
+  .config-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+  .config-field label{ display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; }
+
+  .rename-input{
+    font-family:"DM Sans"; font-weight:700; font-size:20px; border:1px solid transparent;
+    background:transparent; color:var(--ink); border-radius:7px; padding:2px 6px; max-width:420px;
+  }
+  .rename-input:hover{ border-color:var(--border); }
+  .rename-input:focus{ border-color:var(--accent); outline:none; background:var(--bg-elevated); }
+
+  .status-group{ display:inline-flex; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; }
+  .status-opt{
+    padding:7px 13px; border:none; background:var(--bg-elevated); color:var(--ink-soft); cursor:pointer;
+    font-size:12.5px; font-weight:600; border-right:1px solid var(--border-strong); display:flex; align-items:center; gap:6px;
+  }
+  .status-opt:last-child{ border-right:none; }
+  .status-opt .dot{ width:7px; height:7px; border-radius:50%; }
+  .status-opt.sel-open.active{ background:var(--bg-sunken); color:var(--ink); }
+  .status-opt.sel-active.active{ background:var(--accent-soft); color:var(--accent-ink); }
+  .status-opt.sel-released.active{ background:var(--success-soft); color:var(--success); }
+  .status-opt:not(.active):hover{ background:var(--bg-sunken); }
+
+  .notes-area{
+    width:100%; min-height:90px; padding:10px 12px; border-radius:8px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); color:var(--ink); font-family:inherit; font-size:13px; resize:vertical; line-height:1.5;
+  }
+  .notes-area:focus{ border-color:var(--accent); outline:none; }
+  .notes-area::placeholder{ color:var(--ink-faint); }
+
+  .empty{ padding:40px 20px; text-align:center; color:var(--ink-faint); }
+
+  ::-webkit-scrollbar{ height:10px; width:10px; }
+  ::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:99px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  .tooltip{
+    position:fixed; z-index:50; pointer-events:none; background:var(--ink); color:var(--bg-elevated);
+    padding:6px 9px; border-radius:7px; font-size:11.5px; font-family:"DM Sans"; max-width:240px;
+    box-shadow:var(--shadow); display:none;
+  }
+  :root[data-theme="dark"] .tooltip, @media (prefers-color-scheme:dark){ .tooltip{ } }
+
+  @media (max-width: 860px){
+    .side{ display:none; }
+  }
+
+  /* ---------- Cloud-Sync (Supabase) ---------- */
+  .sync-bar{
+    display:none; align-items:center; gap:10px; padding:10px 12px;
+    margin:10px; border-radius:10px; background:var(--bg-sunken); border:1px solid var(--border);
+  }
+  .side.collapsed .sync-bar{ display:none !important; }
+  .sync-avatar{
+    flex:none; width:32px; height:32px; border-radius:50%;
+    background:var(--ink-faint); color:#fff; display:flex; align-items:center; justify-content:center;
+    font-family:"DM Sans"; font-weight:700; font-size:13.5px; letter-spacing:0;
+  }
+  .sync-avatar.ok{ background:linear-gradient(155deg, var(--accent), var(--accent-strong)); }
+  .sync-info{ flex:1; min-width:0; }
+  .sync-name{
+    font-size:12.5px; font-weight:700; color:var(--ink);
+    overflow-wrap:anywhere; line-height:1.3;
+  }
+  .sync-meta{ display:flex; align-items:center; gap:6px; margin-top:2px; }
+  .sync-meta-text{ font-size:11px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sync-dot{ width:8px; height:8px; border-radius:50%; background:var(--ink-faint); flex:none; }
+  .sync-dot.ok{ background:var(--success); }
+  .sync-dot.busy{ background:var(--warning); animation:sync-pulse 1s infinite ease-in-out; }
+  .sync-dot.err{ background:var(--critical); }
+  @keyframes sync-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  .sync-actions{ display:flex; flex-direction:column; gap:2px; flex:none; }
+  .sync-actions button{ padding:3px 6px; font-size:12px; line-height:1; }
+
+  .auth-gate{
+    display:none; position:fixed; inset:0; z-index:80;
+    align-items:center; justify-content:center;
+    background: color-mix(in srgb, var(--bg-sunken) 88%, transparent);
+    backdrop-filter: blur(3px);
+  }
+  .auth-card{
+    width:min(420px, 90vw); background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:14px; box-shadow:var(--shadow); padding:28px 26px; text-align:center;
+  }
+  .auth-card h2{ font-size:19px; margin:4px 0 10px; }
+  .auth-card p{ font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0 0 16px; }
+  .auth-card .btn-primary{ width:100%; justify-content:center; padding:10px 14px; font-size:13.5px; }
+  .auth-hint{ font-size:11.5px !important; color:var(--ink-faint) !important; margin:14px 0 8px !important; }
+  .auth-card .btn-ghost{ color:var(--ink-faint); }
+  .auth-error{ color:var(--critical); font-size:12px; margin-top:10px; display:none; text-align:left; }
+
+  .auth-tabs{
+    display:flex; border:1px solid var(--border-strong); border-radius:9px; overflow:hidden;
+    margin:2px 0 18px;
+  }
+  .auth-tab{
+    flex:1; padding:8px 10px; background:var(--bg-elevated); border:none; cursor:pointer;
+    font-size:12px; font-weight:700; color:var(--ink-soft);
+  }
+  .auth-tab:first-child{ border-right:1px solid var(--border-strong); }
+  .auth-tab.active{ background:var(--accent-soft); color:var(--accent-ink); }
+  .auth-panel[hidden]{ display:none; }
+
+  .auth-mode-switch{ display:flex; justify-content:center; gap:16px; margin-bottom:16px; }
+  .auth-mode-link{
+    background:none; border:none; padding:0; cursor:pointer;
+    font-size:12px; font-weight:700; color:var(--ink-faint);
+  }
+  .auth-mode-link.active{ color:var(--accent-ink); text-decoration:underline; text-underline-offset:3px; }
+
+  .auth-form{ display:flex; flex-direction:column; gap:12px; text-align:left; }
+  .auth-field{ display:flex; flex-direction:column; gap:5px; }
+  .auth-field[hidden]{ display:none; }
+  .auth-field span{ font-size:11.5px; font-weight:700; color:var(--ink-soft); }
+  .auth-field input{
+    padding:8px 10px; border-radius:7px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); color:var(--ink); font-size:13px; width:100%;
+  }
+  .auth-field input:focus{ border-color:var(--accent); outline:none; }
+  .auth-form .btn-primary{ margin-top:2px; }
+
+  .auth-info{ font-size:12px; color:var(--ink-soft); margin-top:14px; line-height:1.55; text-align:left; display:none; }
+  .auth-info.show{ display:block; }
+  .auth-info.success{ color:var(--success); }
+</style>
+
+<div class="shell">
+  <aside class="side" id="sideNav">
+    <div class="brand">
+      <div class="brand-mark" title="Einklappen/Ausklappen" id="brandMarkToggle">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.4" stroke="#fff" stroke-opacity="0.45" stroke-width="1.3"/>
+          <circle cx="12" cy="12" r="5.2" stroke="#4bd8ce" stroke-opacity="0.9" stroke-width="1.3"/>
+          <circle cx="12" cy="12" r="2" stroke="#fff" stroke-opacity="0.8" stroke-width="1.3"/>
+          <path d="M12 12 L12 3.6 A8.4 8.4 0 0 1 18.5 15.3 Z" fill="#f1c400" fill-opacity="0.3"/>
+          <line x1="12" y1="12" x2="12" y2="3.6" stroke="#f1c400" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="16.2" cy="7.6" r="1.3" fill="#f1c400"/>
+          <circle cx="8" cy="16" r="1" fill="#4bd8ce" fill-opacity="0.9"/>
+        </svg>
+      </div>
+      <div class="brand-labels">
+        <div class="brand-text">Release Radar</div>
+        <div class="brand-sub">Komm.UNITY Zeitplanung</div>
+      </div>
+      <button class="side-toggle" id="sideToggle" title="Navigation einklappen">&#10094;</button>
+    </div>
+    <button class="side-expand" id="sideExpand" title="Navigation ausklappen">&#10095;</button>
+    <nav class="nav" id="navList"></nav>
+    <div class="sync-bar" id="syncBar">
+      <div class="sync-avatar" id="syncAvatar">?</div>
+      <div class="sync-info">
+        <div class="sync-name" id="syncName">Nicht angemeldet</div>
+        <div class="sync-meta">
+          <span class="sync-dot" id="syncDot"></span>
+          <span class="sync-meta-text" id="syncText">Bitte anmelden</span>
+        </div>
+      </div>
+      <div class="sync-actions">
+        <button class="btn btn-ghost btn-sm" id="syncNowBtn" title="Jetzt synchronisieren">&#8635;</button>
+        <button class="btn btn-ghost btn-sm" id="syncSignOutBtn" title="Abmelden">&#9099;</button>
+      </div>
+    </div>
+    <div class="side-foot">
+      <button class="theme-btn" data-theme-choice="light">Hell</button>
+      <button class="theme-btn" data-theme-choice="system">Auto</button>
+      <button class="theme-btn" data-theme-choice="dark">Dunkel</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="topTitle">Übersicht</h1>
+        <div class="subtitle" id="topSubtitle">Alle Releases auf einer Zeitachse</div>
+      </div>
+      <div class="topbar-actions" id="topActions"></div>
+    </div>
+    <div class="view" id="viewRoot"></div>
+  </main>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="brand-mark" style="margin:0 auto 14px; width:52px; height:52px; border-radius:14px;">
+      <svg viewBox="0 0 24 24" width="30" height="30" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.4" stroke="#fff" stroke-opacity="0.45" stroke-width="1.3"/>
+        <circle cx="12" cy="12" r="5.2" stroke="#4bd8ce" stroke-opacity="0.9" stroke-width="1.3"/>
+        <circle cx="12" cy="12" r="2" stroke="#fff" stroke-opacity="0.8" stroke-width="1.3"/>
+        <path d="M12 12 L12 3.6 A8.4 8.4 0 0 1 18.5 15.3 Z" fill="#f1c400" fill-opacity="0.3"/>
+        <line x1="12" y1="12" x2="12" y2="3.6" stroke="#f1c400" stroke-width="1.6" stroke-linecap="round"/>
+        <circle cx="16.2" cy="7.6" r="1.3" fill="#f1c400"/>
+        <circle cx="8" cy="16" r="1" fill="#4bd8ce" fill-opacity="0.9"/>
+      </svg>
+    </div>
+    <div id="authLoginScreen">
+      <h2>Team-Arbeitsstand laden</h2>
+      <p>Diese Release Radar-Instanz ist für die Zusammenarbeit im Team eingerichtet. Melden Sie sich an, um denselben Arbeitsstand wie Ihre Kolleginnen und Kollegen zu sehen — Änderungen werden in Echtzeit geteilt.</p>
+
+      <div class="auth-tabs" id="authTabs">
+        <button type="button" class="auth-tab active" data-tab="sso">Microsoft-Konto</button>
+        <button type="button" class="auth-tab" data-tab="email">E-Mail &amp; Passwort</button>
+      </div>
+
+      <div class="auth-panel" id="authPanelSso">
+        <button class="btn btn-primary" id="authSignInBtn">Mit Microsoft-Konto anmelden</button>
+      </div>
+
+      <div class="auth-panel" id="authPanelEmail" hidden>
+        <div class="auth-mode-switch" id="authModeSwitch">
+          <button type="button" class="auth-mode-link active" data-mode="signin">Anmelden</button>
+          <button type="button" class="auth-mode-link" data-mode="signup">Konto erstellen</button>
+          <button type="button" class="auth-mode-link" data-mode="reset">Passwort vergessen</button>
+        </div>
+        <form class="auth-form" id="authEmailForm">
+          <label class="auth-field">
+            <span>E-Mail-Adresse</span>
+            <input type="email" id="authEmailInput" autocomplete="email" required>
+          </label>
+          <label class="auth-field" id="authPasswordField">
+            <span>Passwort</span>
+            <input type="password" id="authPasswordInput" autocomplete="current-password">
+          </label>
+          <label class="auth-field" id="authPasswordConfirmField" hidden>
+            <span>Passwort bestätigen</span>
+            <input type="password" id="authPasswordConfirmInput" autocomplete="new-password">
+          </label>
+          <button type="submit" class="btn btn-primary" id="authEmailSubmitBtn">Anmelden</button>
+        </form>
+        <div class="auth-info" id="authEmailInfo"></div>
+      </div>
+
+      <div class="auth-error" id="authError"></div>
+    </div>
+
+    <div id="authRecoveryScreen" hidden>
+      <h2>Neues Passwort festlegen</h2>
+      <p>Sie haben über den Link in Ihrer E-Mail ein neues Passwort angefordert. Bitte vergeben Sie jetzt ein neues Passwort für Ihr Konto.</p>
+      <form class="auth-form" id="authRecoveryForm">
+        <label class="auth-field">
+          <span>Neues Passwort</span>
+          <input type="password" id="authRecoveryPw" autocomplete="new-password" required>
+        </label>
+        <label class="auth-field">
+          <span>Neues Passwort bestätigen</span>
+          <input type="password" id="authRecoveryPw2" autocomplete="new-password" required>
+        </label>
+        <button type="submit" class="btn btn-primary" id="authRecoverySubmitBtn">Neues Passwort speichern</button>
+      </form>
+      <div class="auth-error" id="authRecoveryError"></div>
+    </div>
+  </div>
+</div>
+
+<!--
+  Konfiguration für die Team-Synchronisierung (Supabase: Datenbank + Auth + Realtime).
+  "enabled: false" = App läuft wie bisher rein lokal im Browser (Standard).
+  Zum Aktivieren: siehe beiliegende Einrichtungsanleitung, dann enabled auf true setzen
+  und die zwei Platzhalter unten mit den Werten aus Ihrem Supabase-Projekt befüllen.
+  Der "anon key" ist bewusst öffentlich/clientseitig sichtbar — die eigentliche Absicherung
+  erfolgt über Row-Level-Security-Regeln in der Datenbank, nicht über die Geheimhaltung dieses Keys.
+-->
+<script>
+  window.RELEASE_RADAR_CONFIG = {
+    enabled: true,
+    supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/", // z. B. https://abcdefgh.supabase.co
+    supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiamRoamVwbGxxeWRhZGFndG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3NTI4NTgsImV4cCI6MjEwMzMyODg1OH0.-zPhRT2GMUmzWtlVzF-80deEwqlBqKO4nxRDBbbYYuw"
+  };
+</script>
+<!--
+  supabase-js (offizielle Supabase-Client-Bibliothek) — über jsDelivr ausgeliefert.
+  Wird nur benötigt, wenn RELEASE_RADAR_CONFIG.enabled = true ist; bei enabled:false ist dieses
+  Skript wirkungslos. Sollte der Aufruf in Ihrer Umgebung blockiert sein, kann die URL gegen
+  https://unpkg.com/@supabase/supabase-js@2 getauscht werden (siehe Einrichtungsanleitung).
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script id="seed-data" type="application/json">[
+ {
+  "name": "Release 11.08.2026",
+  "mode": "Publishing",
+  "anchor": "2026-08-11",
+  "tasks": [
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Entscheidung über die Erstellung eines Release",
+    "resp": "Alle"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Release Branch vorbereiten, Build Pipeline einrichten",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 1,
+    "name": "Planung Inkrement 1",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 1",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Inkrement 1",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Pilot auswählen und informieren (derzeit ÖGD)",
+    "resp": "Denislav"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Finale Entscheidung über Inhalt Inkrement 1",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 3,
+    "name": "Planung Inkrement 2",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 1",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 1 auf KU29",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 1 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Featuretest Version Inkrement 1 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Fixing Bugs der Version Inkrement 1",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 2",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Version Inkrement 2",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Finale Entscheidung über Inhalt Inkrement 2",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 3,
+    "name": "Planung Inkrement 3",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 2",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 2 auf KU29",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 2 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Featuretest Version Inkrement 2 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Fixing Bugs der Version Inkrement 1+2",
+    "resp": "adfin"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 3",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Inkrement 3",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 3,
+    "name": "Finale Entscheidung über Inhalt Inkrement 3",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Feature Freeze",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 3",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 3 auf KU29",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 3 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Final Feature Test",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 10,
+    "name": "Fixing Bugs von Inkrement 1+2+3",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version 1 nach Feature Freeze",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version 1 nach Feature Freeze auf KU29",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Bug Retest & Regressiontest",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 4,
+    "name": "Fixing Bugs",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 8,
+    "name": "Vorläufige Release Info an Pilot und Kunden",
+    "resp": "N.N."
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version 2 nach Feature Freeze",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version 2 nach Feature Freeze auf QS",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf QS",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 6,
+    "lag": 0,
+    "name": "Pilotierung",
+    "resp": "Pilot"
+   },
+   {
+    "done": true,
+    "duration": 6,
+    "lag": 5,
+    "name": "Fixing Bugs aus Pilotierung",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Code Freeze",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Final Build",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 1,
+    "name": "Deploy Final Build auf QS",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf QS",
+    "resp": "Pilot"
+   },
+   {
+    "done": true,
+    "duration": 2,
+    "lag": 0,
+    "name": "Abschließende Tests",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 2,
+    "lag": 2,
+    "name": "Final Pilotierung (optional)",
+    "resp": "Pilot"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Entscheidung über Produktivsetzung des Final Build",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Freigabe des Final Build für Produktion",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Veröffentlichung der Release-Notes",
+    "resp": "N.N."
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Veröffentlichung der Handbücher",
+    "resp": "N.N."
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 1,
+    "name": "Information der Kunden",
+    "resp": "N.N."
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deployment auf Produktion",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf Produktion",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Information der Kunden über erfolgte Produktivsetzung",
+    "resp": "N.N."
+   }
+  ]
+ },
+ {
+  "name": "Release 22.09.2026",
+  "mode": "Publishing",
+  "anchor": "2026-09-29",
+  "tasks": [
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Entscheidung über die Erstellung eines Release",
+    "resp": "Alle"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Release Branch vorbereiten, Build Pipeline einrichten",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 1,
+    "name": "Planung Inkrement 1",
+    "resp": "POs, PLs adfinis"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 1",
+    "resp": "adfinis"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Inkrement 1",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Pilot auswählen und informieren (derzeit ÖGD)",
+    "resp": "Denislav"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Finale Entscheidung über Inhalt Inkrement 1",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 3,
+    "name": "Planung Inkrement 2",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 1",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 1 auf KU29",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 1 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Featuretest Version Inkrement 1 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Fixing Bugs der Version Inkrement 1",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 2",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Version Inkrement 2",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Finale Entscheidung über Inhalt Inkrement 2",
+    "resp": "POs, PLs, MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 3,
+    "name": "Planung Inkrement 3",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 2",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 2 auf KU29",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 2 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Featuretest Version Inkrement 2 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Fixing Bugs der Version Inkrement 1+2",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 3",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Inkrement 3",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 3,
+    "name": "Finale Entscheidung über Inhalt Inkrement 3",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Feature Freeze",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 3",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 3 auf KU29",
+    "resp": "MC"
+   },
+   {
+    "done": true,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 3 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": true,
+    "duration": 10,
+    "lag": 0,
+    "name": "Final Feature Test",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 10,
+    "name": "Fixing Bugs von Inkrement 1+2+3",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version 1 nach Feature Freeze",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version 1 nach Feature Freeze auf KU29",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Bug Retest & Regressiontest",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 4,
+    "name": "Fixing Bugs",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 3,
+    "lag": 6,
+    "name": "Vorläufige Release Info an Pilot und Kunden",
+    "resp": "Releasemanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version 2 nach Feature Freeze",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version 2 nach Feature Freeze auf QS",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf QS",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 12,
+    "lag": 0,
+    "name": "Pilotierung",
+    "resp": "Pilot"
+   },
+   {
+    "done": false,
+    "duration": 12,
+    "lag": 12,
+    "name": "Fixing Bugs aus Pilotierung",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Code Freeze",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Final Build",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 1,
+    "name": "Deploy Final Build auf QS",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf QS",
+    "resp": "Pilot"
+   },
+   {
+    "done": false,
+    "duration": 2,
+    "lag": 0,
+    "name": "Abschließende Tests",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 2,
+    "lag": 2,
+    "name": "Final Pilotierung (optional)",
+    "resp": "Pilot"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Entscheidung über Produktivsetzung des Final Build",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Freigabe des Final Build für Produktion",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Veröffentlichung der Release-Notes",
+    "resp": "Releasemanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Veröffentlichung der Handbücher",
+    "resp": "N.N."
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 1,
+    "name": "Information der Kunden",
+    "resp": "Releasemanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deployment auf Produktion",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf Produktion",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Information der Kunden über erfolgte Produktivsetzung",
+    "resp": "Releasemanager"
+   }
+  ]
+ },
+ {
+  "name": "Release 03.11.2026",
+  "mode": "Publishing",
+  "anchor": "2026-11-03",
+  "tasks": [
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Entscheidung über die Erstellung eines Release",
+    "resp": "Alle"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Release Branch vorbereiten, Build Pipeline einrichten",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 1,
+    "name": "Planung Inkrement 1",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 1",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Inkrement 1",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Pilot auswählen und informieren (derzeit ÖGD)",
+    "resp": "Denislav"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Finale Entscheidung über Inhalt Inkrement 1",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 3,
+    "name": "Planung Inkrement 2",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 1",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 1 auf KU29",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 1 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Featuretest Version Inkrement 1 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Fixing Bugs der Version Inkrement 1",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 2",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Version Inkrement 2",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Finale Entscheidung über Inhalt Inkrement 2",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 3,
+    "name": "Planung Inkrement 3",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 2",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 2 auf KU29",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 2 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Featuretest Version Inkrement 2 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Fixing Bugs der Version Inkrement 1+2",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Implementierung Inkrement 3",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 7,
+    "name": "Testfallerstellung Inkrement 3",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 3,
+    "name": "Finale Entscheidung über Inhalt Inkrement 3",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Feature Freeze",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version Inkrement 3",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version Inkrement 3 auf KU29",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test Version Inkrement 3 auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Final Feature Test",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 10,
+    "name": "Fixing Bugs von Inkrement 1+2+3",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version 1 nach Feature Freeze",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version 1 nach Feature Freeze auf KU29",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf KU29",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 0,
+    "name": "Bug Retest & Regressiontest",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 10,
+    "lag": 4,
+    "name": "Fixing Bugs",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 6,
+    "name": "Vorläufige Release Info an Pilot und Kunden",
+    "resp": "Releasemanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Build Version 2 nach Feature Freeze",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deploy Version 2 nach Feature Freeze auf QS",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf QS",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 8,
+    "lag": 0,
+    "name": "Pilotierung",
+    "resp": "Pilot"
+   },
+   {
+    "done": false,
+    "duration": 8,
+    "lag": 7,
+    "name": "Fixing Bugs aus Pilotierung",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Code Freeze",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Final Build",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 1,
+    "name": "Deploy Final Build auf QS",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf QS",
+    "resp": "Pilot"
+   },
+   {
+    "done": false,
+    "duration": 2,
+    "lag": 0,
+    "name": "Abschließende Tests",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 2,
+    "lag": 2,
+    "name": "Final Pilotierung (optional)",
+    "resp": "Pilot"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Entscheidung über Produktivsetzung des Final Build",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Freigabe des Final Build für Produktion",
+    "resp": "POs, PLs MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Veröffentlichung der Release-Notes",
+    "resp": "Releasemanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Veröffentlichung der Handbücher",
+    "resp": "N.N."
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 1,
+    "name": "Information der Kunden",
+    "resp": "Releasemanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Deployment auf Produktion",
+    "resp": "MC"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Smoke-Test auf Produktion",
+    "resp": "Testmanager"
+   },
+   {
+    "done": false,
+    "duration": 1,
+    "lag": 0,
+    "name": "Information der Kunden über erfolgte Produktivsetzung",
+    "resp": "Releasemanager"
+   }
+  ]
+ }
+]
+</script>
+<script>
+/* ===================== Release Radar — App Logic =====================
+   Nachbau der Excel-Datei "Release_TimePlanning_Delivery & QA.xlsx"
+   - Feiertagsberechnung (Baden-Württemberg) inkl. Gauß'scher Osterformel
+   - WORKDAY()-Äquivalent (Excel), inkl. negativer Tage (Rückwärtsrechnung)
+   - Terminkette: Start(n) = WORKDAY(Start(n-1), Puffer(n-1))
+                  Ende(n)  = WORKDAY(Start(n), Dauer(n)-1)
+   - Modus "Start": erste Aufgabe beginnt am Ankerdatum
+   - Modus "Publishing": erste Aufgabe wird vom Zieldatum rückwärts berechnet
+======================================================================= */
+
+(function(){
+  "use strict";
+
+  /* ---------------- Datumshilfen ---------------- */
+  const MS_DAY = 86400000;
+  function dkey(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function parseISO(s){ const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); }
+  function toISO(d){ return dkey(d); }
+  function addDays(d, n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+  function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+  function fmtDate(d){
+    if(!d) return "–";
+    const wd = ["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()];
+    return wd+", "+String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+"."+d.getFullYear();
+  }
+  function fmtDateShort(d){
+    if(!d) return "–";
+    return String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+"."+d.getFullYear();
+  }
+  const MONTH_NAMES = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  const MONTH_SHORT = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+
+  /* ---------------- Feiertage Baden-Württemberg ---------------- */
+  // Gauß'sche Osterformel -> liefert Datum des Ostersonntags
+  function easterSunday(year){
+    const a = year % 19;
+    const b = Math.floor(year/100), c = year % 100;
+    const d = Math.floor(b/4), e = b % 4;
+    const f = Math.floor((b+8)/25);
+    const g = Math.floor((b-f+1)/3);
+    const h = (19*a + b - d - g + 15) % 30;
+    const i = Math.floor(c/4), k = c % 4;
+    const l = (32 + 2*e + 2*i - h - k) % 7;
+    const m = Math.floor((a + 11*h + 22*l)/451);
+    const month = Math.floor((h + l - 7*m + 114)/31); // 3=März, 4=April
+    const day = ((h + l - 7*m + 114) % 31) + 1;
+    return new Date(year, month-1, day);
+  }
+  function bwHolidays(year){
+    const easter = easterSunday(year);
+    return [
+      {d:new Date(year,0,1),  n:"Neujahr"},
+      {d:new Date(year,0,6),  n:"Heilige Drei Könige"},
+      {d:addDays(easter,-2),  n:"Karfreitag"},
+      {d:easter,              n:"Ostersonntag"},
+      {d:addDays(easter,1),   n:"Ostermontag"},
+      {d:new Date(year,4,1),  n:"Tag der Arbeit"},
+      {d:addDays(easter,39),  n:"Christi Himmelfahrt"},
+      {d:addDays(easter,49),  n:"Pfingstsonntag"},
+      {d:addDays(easter,50),  n:"Pfingstmontag"},
+      {d:addDays(easter,60),  n:"Fronleichnam"},
+      {d:new Date(year,9,3),  n:"Tag der Deutschen Einheit"},
+      {d:new Date(year,10,1), n:"Allerheiligen"},
+      {d:new Date(year,11,25),n:"1. Weihnachtsfeiertag"},
+      {d:new Date(year,11,26),n:"2. Weihnachtsfeiertag"},
+    ];
+  }
+  // Cache: Map<year, Map<dateKey, name>>
+  const holidayCache = new Map();
+  function holidaysForYear(year){
+    if(!holidayCache.has(year)){
+      const m = new Map();
+      bwHolidays(year).forEach(h => m.set(dkey(h.d), h.n));
+      holidayCache.set(year, m);
+    }
+    return holidayCache.get(year);
+  }
+  function holidayName(date){
+    return holidaysForYear(date.getFullYear()).get(dkey(date)) || null;
+  }
+  function isWeekend(date){ const wd = date.getDay(); return wd===0 || wd===6; }
+  function isWorkday(date){ return !isWeekend(date) && !holidayName(date); }
+
+  // Excel WORKDAY(start, days) — days can be negative or zero, holidays optional (built-in BW holidays)
+  function workday(start, days, useHolidays){
+    days = Math.trunc(days || 0);
+    let date = new Date(start);
+    if(days === 0) return date;
+    const step = days > 0 ? 1 : -1;
+    let remaining = Math.abs(days);
+    while(remaining > 0){
+      date = addDays(date, step);
+      const wknd = isWeekend(date);
+      const hol = useHolidays===false ? false : !!holidayName(date);
+      if(!wknd && !hol) remaining--;
+    }
+    return date;
+  }
+
+  /* ---------------- Terminberechnung je Release ---------------- */
+  function computeSchedule(release){
+    const tasks = release.tasks;
+    const n = tasks.length;
+    const starts = new Array(n), ends = new Array(n);
+    const sumLag = tasks.reduce((s,t)=>s+(Number(t.lag)||0),0);
+    const anchor = parseISO(release.anchor);
+    starts[0] = (release.mode === "Start") ? anchor : workday(anchor, -sumLag, true);
+    for(let k=1;k<n;k++){
+      starts[k] = workday(starts[k-1], tasks[k-1].lag, true);
+    }
+    for(let k=0;k<n;k++){
+      const dur = Number(tasks[k].duration)||0;
+      ends[k] = dur > 0 ? workday(starts[k], dur-1, true) : starts[k];
+    }
+    let minStart = starts[0], maxEnd = ends[0];
+    for(let k=1;k<n;k++){
+      if(starts[k] < minStart) minStart = starts[k];
+      if(ends[k] > maxEnd) maxEnd = ends[k];
+    }
+    return { starts, ends, minStart, maxEnd, sumLag };
+  }
+
+  /* ---------------- Release-Status ---------------- */
+  const STATUS_META = {
+    open:      { label: "Offen",         dot: "var(--ink-faint)", pillClass: "pill-muted" },
+    active:    { label: "Laufend",       dot: "var(--accent)",    pillClass: "pill-accent" },
+    released:  { label: "Veröffentlicht",dot: "var(--success)",   pillClass: "pill-success" },
+  };
+  function statusMeta(status){ return STATUS_META[status] || STATUS_META.open; }
+  function defaultStatusFor(release){
+    const doneCount = release.tasks.filter(t=>t.done).length;
+    if(release.tasks.length && doneCount === release.tasks.length) return "released";
+    const today = new Date(); today.setHours(0,0,0,0);
+    if(doneCount > 0) return "active";
+    try{
+      const anchor = parseISO(release.anchor);
+      if(anchor <= addDays(today, 21)) return "active";
+    }catch(e){}
+    return "open";
+  }
+  function statusPill(status){
+    const m = statusMeta(status);
+    return `<span class="pill ${m.pillClass}"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>${m.label}</span>`;
+  }
+
+  /* ---------------- Meilensteine ---------------- */
+  // Exakter Abgleich (nicht "includes"), damit z.B. "Build Version 1 nach Feature Freeze" nicht mitzählt
+  const MILESTONE_NAMES = ["feature freeze", "code freeze", "deployment auf produktion"];
+  function isMilestoneTask(name){
+    const n = (name||"").trim().toLowerCase();
+    return MILESTONE_NAMES.includes(n);
+  }
+  function getMilestones(release, sched){
+    const out = [];
+    release.tasks.forEach((t,i) => {
+      if(isMilestoneTask(t.name)){
+        out.push({ label: t.name, date: sched.starts[i] });
+      }
+    });
+    return out;
+  }
+
+  /* ---------------- Default-Vorlage für neue Releases ---------------- */
+  const DEFAULT_TEMPLATE = [
+    ["Entscheidung über die Erstellung eines Release","Alle",1,0],
+    ["Release Branch vorbereiten, Build Pipeline einrichten","Entwicklungspartner",1,0],
+    ["Planung Inkrement 1","POs, PLs",1,1],
+    ["Implementierung Inkrement 1","Entwicklungspartner",10,0],
+    ["Testfallerstellung Inkrement 1","Testmanager",10,7],
+    ["Pilot auswählen und informieren","Releasemanager",1,0],
+    ["Finale Entscheidung über Inhalt Inkrement 1","POs, PLs",1,0],
+    ["Planung Inkrement 2","POs, PLs",1,3],
+    ["Build Version Inkrement 1","Entwicklungspartner",1,0],
+    ["Deploy Version Inkrement 1 auf KU29","Entwicklungspartner",1,0],
+    ["Smoke-Test Version Inkrement 1 auf KU29","Testmanager",1,0],
+    ["Featuretest Version Inkrement 1 auf KU29","Testmanager",10,0],
+    ["Fixing Bugs der Version Inkrement 1","Entwicklungspartner",10,0],
+    ["Implementierung Inkrement 2","Entwicklungspartner",10,0],
+    ["Testfallerstellung Version Inkrement 2","Testmanager",10,7],
+    ["Finale Entscheidung über Inhalt Inkrement 2","POs, PLs",1,0],
+    ["Planung Inkrement 3","POs, PLs",1,3],
+    ["Build Version Inkrement 2","Entwicklungspartner",1,0],
+    ["Deploy Version Inkrement 2 auf KU29","Entwicklungspartner",1,0],
+    ["Smoke-Test Version Inkrement 2 auf KU29","Testmanager",1,0],
+    ["Featuretest Version Inkrement 2 auf KU29","Testmanager",10,0],
+    ["Fixing Bugs der Version Inkrement 1+2","Entwicklungspartner",10,0],
+    ["Implementierung Inkrement 3","Entwicklungspartner",10,0],
+    ["Testfallerstellung Inkrement 3","Testmanager",10,7],
+    ["Finale Entscheidung über Inhalt Inkrement 3","POs, PLs",1,3],
+    ["Feature Freeze","POs, PLs",1,0],
+    ["Build Version Inkrement 3","Entwicklungspartner",1,0],
+    ["Deploy Version Inkrement 3 auf KU29","Entwicklungspartner",1,0],
+    ["Smoke-Test Version Inkrement 3 auf KU29","Testmanager",1,0],
+    ["Final Feature Test","Testmanager",10,0],
+    ["Fixing Bugs von Inkrement 1+2+3","Entwicklungspartner",10,10],
+    ["Build Version 1 nach Feature Freeze","Entwicklungspartner",1,0],
+    ["Deploy Version 1 nach Feature Freeze auf KU29","Entwicklungspartner",1,0],
+    ["Smoke-Test auf KU29","Testmanager",1,0],
+    ["Bug Retest & Regressiontest","Testmanager",10,0],
+    ["Fixing Bugs","Entwicklungspartner",10,4],
+    ["Vorläufige Release Info an Pilot und Kunden","Releasemanager",1,8],
+    ["Build Version 2 nach Feature Freeze","Entwicklungspartner",1,0],
+    ["Deploy Version 2 nach Feature Freeze auf QS","Entwicklungspartner",1,0],
+    ["Smoke-Test auf QS","Testmanager",1,0],
+    ["Pilotierung","Pilot",6,0],
+    ["Fixing Bugs aus Pilotierung","Testmanager",6,5],
+    ["Code Freeze","POs, PLs",1,0],
+    ["Final Build","Entwicklungspartner",1,0],
+    ["Deploy Final Build auf QS","Entwicklungspartner",1,1],
+    ["Smoke-Test auf QS","Pilot",1,0],
+    ["Abschließende Tests","Testmanager",2,0],
+    ["Final Pilotierung (optional)","Pilot",2,2],
+    ["Entscheidung über Produktivsetzung des Final Build","POs, PLs",1,0],
+    ["Freigabe des Final Build für Produktion","POs, PLs",1,0],
+    ["Veröffentlichung der Release-Notes","Releasemanager",1,0],
+    ["Veröffentlichung der Handbücher","Releasemanager",1,0],
+    ["Information der Kunden","Releasemanager",1,1],
+    ["Deployment auf Produktion","Entwicklungspartner",1,0],
+    ["Smoke-Test auf Produktion","Testmanager",1,0],
+    ["Information der Kunden über erfolgte Produktivsetzung","Releasemanager",1,0],
+  ];
+  function makeTemplateTasks(){
+    return DEFAULT_TEMPLATE.map((row,i)=>({
+      id: "t"+i+"_"+Math.random().toString(36).slice(2,8),
+      name: row[0], resp: row[1], duration: row[2], lag: row[3], done:false
+    }));
+  }
+
+  /* ---------------- State ---------------- */
+  const STORAGE_KEY = "release-radar-state-v1";
+  let state = null;
+
+  // Transient UI-Zustand für die Aufgaben-Tabelle (Filter/Sortierung je Release).
+  // Bewusst NICHT Teil von "state" — wird nicht in localStorage gespeichert oder synchronisiert.
+  const taskTableUI = {};
+  function getTaskTableUI(releaseId){
+    if(!taskTableUI[releaseId]) taskTableUI[releaseId] = { sortCol:null, sortDir:1, filters:{} };
+    return taskTableUI[releaseId];
+  }
+
+  function loadSeed(){
+    const seedEl = document.getElementById("seed-data");
+    const seed = JSON.parse(seedEl.textContent);
+    return {
+      activeId: "overview",
+      timelineStart: null, // ISO date, auto if null
+      dayWidth: 22,
+      sidebarCollapsed: false,
+      releases: seed.map((r,idx) => {
+        const rel = {
+          id: "r"+idx+"_"+Math.random().toString(36).slice(2,8),
+          dbId: null,
+          updatedAt: new Date(0).toISOString(),
+          name: r.name,
+          mode: r.mode === "Start" ? "Start" : "Publishing",
+          anchor: r.anchor,
+          notes: "",
+          tasks: r.tasks.map((t,i)=>({
+            id:"t"+idx+"_"+i+"_"+Math.random().toString(36).slice(2,8),
+            name:t.name, resp:t.resp, duration:t.duration, lag:t.lag, done:!!t.done
+          }))
+        };
+        rel.status = defaultStatusFor(rel);
+        return rel;
+      })
+    };
+  }
+
+  // Füllt fehlende Felder auf, wenn ein älterer Stand aus localStorage geladen wird
+  function migrateState(s){
+    if(typeof s.sidebarCollapsed !== "boolean") s.sidebarCollapsed = false;
+    if(typeof s.dayWidth !== "number") s.dayWidth = 22;
+    s.releases.forEach(r => {
+      if(typeof r.notes !== "string") r.notes = "";
+      if(!r.status || !STATUS_META[r.status]) r.status = defaultStatusFor(r);
+      if(typeof r.dbId === "undefined") r.dbId = null;
+      if(typeof r.updatedAt !== "string") r.updatedAt = new Date(0).toISOString();
+      r.tasks.forEach(t => { if(typeof t.done !== "boolean") t.done = false; });
+    });
+    return s;
+  }
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        const parsed = JSON.parse(raw);
+        if(parsed && Array.isArray(parsed.releases) && parsed.releases.length){
+          return migrateState(parsed);
+        }
+      }
+    }catch(e){ /* ignore, e.g. private browsing */ }
+    return loadSeed();
+  }
+  function saveState(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){ /* storage unavailable */ }
+  }
+
+  function getRelease(id){ return state.releases.find(r=>r.id===id); }
+
+  /* ---------------- Theme ---------------- */
+  function applyTheme(choice){
+    const root = document.documentElement;
+    if(choice === "light") root.setAttribute("data-theme","light");
+    else if(choice === "dark") root.setAttribute("data-theme","dark");
+    else root.removeAttribute("data-theme");
+    document.querySelectorAll(".theme-btn").forEach(b=>{
+      b.classList.toggle("active", b.dataset.themeChoice === choice);
+    });
+    try{ localStorage.setItem("release-radar-theme", choice); }catch(e){}
+  }
+
+  /* ---------------- Rendering: Navigation ---------------- */
+  function renderNav(){
+    const nav = document.getElementById("navList");
+    nav.innerHTML = "";
+
+    const label1 = document.createElement("div");
+    label1.className = "nav-label";
+    label1.textContent = "Analyse";
+    nav.appendChild(label1);
+
+    nav.appendChild(navItem("overview", "Übersicht"));
+
+    const label2 = document.createElement("div");
+    label2.className = "nav-label";
+    label2.textContent = "Releases";
+    nav.appendChild(label2);
+
+    state.releases.forEach(r => nav.appendChild(navItem(r.id, r.name, r.status)));
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "nav-add";
+    addBtn.innerHTML = `<span>&#43;</span><span class="add-label">Neues Release</span>`;
+    addBtn.onclick = addRelease;
+    nav.appendChild(addBtn);
+  }
+  function navItem(id, name, status){
+    const el = document.createElement("div");
+    el.className = "nav-item" + (state.activeId === id ? " active" : "");
+    el.title = name;
+    el.innerHTML = `<span class="nav-dot"></span><span class="nav-name"></span>` +
+      (id!=="overview" ? `<button class="nav-del" title="Release löschen">&times;</button>` : "");
+    el.querySelector(".nav-name").textContent = name;
+    const dot = el.querySelector(".nav-dot");
+    dot.style.background = id === "overview" ? "var(--accent)" : statusMeta(status).dot;
+    el.onclick = (e) => {
+      if(e.target.closest(".nav-del")) return;
+      state.activeId = id; saveState(); renderAll();
+    };
+    const del = el.querySelector(".nav-del");
+    if(del){
+      // Zwei-Klick-Bestätigung statt window.confirm (in Artifact-Sandbox nicht verlässlich verfügbar)
+      del.onclick = (e) => {
+        e.stopPropagation();
+        if(del.dataset.confirm === "1"){
+          const idx = state.releases.findIndex(r=>r.id===id);
+          const removed = state.releases[idx];
+          state.releases.splice(idx,1);
+          if(state.activeId === id) state.activeId = "overview";
+          saveState(); renderAll();
+          if(removed) deleteRemoteRelease(removed);
+          return;
+        }
+        del.dataset.confirm = "1";
+        del.classList.add("confirm");
+        del.textContent = "Löschen?";
+        del.title = "Nochmal klicken zum endgültigen Löschen";
+        clearTimeout(del._resetTimer);
+        del._resetTimer = setTimeout(() => {
+          del.dataset.confirm = "";
+          del.classList.remove("confirm");
+          del.innerHTML = "&times;";
+          del.title = "Release löschen";
+        }, 3000);
+      };
+    }
+    return el;
+  }
+  function addRelease(){
+    const n = state.releases.length + 1;
+    const anchor = new Date(); anchor.setMonth(anchor.getMonth()+2);
+    const rel = {
+      id: "r_"+Math.random().toString(36).slice(2,9),
+      dbId: null,
+      updatedAt: new Date().toISOString(),
+      name: "Release "+n,
+      mode: "Publishing",
+      anchor: toISO(anchor),
+      status: "open",
+      notes: "",
+      tasks: makeTemplateTasks()
+    };
+    state.releases.push(rel);
+    state.activeId = rel.id;
+    saveState(); renderAll();
+    scheduleSyncPush(rel);
+  }
+
+  /* ---------------- Tooltip ---------------- */
+  const tooltipEl = document.getElementById("tooltip");
+  function showTip(html, x, y){
+    tooltipEl.innerHTML = html;
+    tooltipEl.style.display = "block";
+    const rect = tooltipEl.getBoundingClientRect();
+    let left = x + 12, top = y + 14;
+    if(left + rect.width > window.innerWidth - 10) left = x - rect.width - 12;
+    if(top + rect.height > window.innerHeight - 10) top = y - rect.height - 14;
+    tooltipEl.style.left = left+"px";
+    tooltipEl.style.top = top+"px";
+  }
+  function hideTip(){ tooltipEl.style.display = "none"; }
+
+  /* ---------------- Gantt-Grid Helpers ---------------- */
+  // Baut Tages-Hintergrund (Wochenende/Feiertag) + Monatsraster für einen Zeitraum
+  function buildDayBackground(container, fromDate, totalDays, dayWidth, milestoneOffsets){
+    container.innerHTML = "";
+    for(let i=0;i<totalDays;i++){
+      const d = addDays(fromDate, i);
+      const hol = holidayName(d);
+      if(isWeekend(d) || hol){
+        const seg = document.createElement("div");
+        seg.className = "gantt-day " + (hol ? "holiday" : "weekend");
+        seg.style.left = (i*dayWidth)+"px";
+        seg.style.width = dayWidth+"px";
+        if(hol){ seg.title = hol; }
+        container.appendChild(seg);
+      }
+    }
+    if(milestoneOffsets){
+      milestoneOffsets.forEach(off => {
+        if(off >= 0 && off < totalDays){
+          const line = document.createElement("div");
+          line.className = "gantt-milestoneline";
+          line.style.left = (off*dayWidth + dayWidth/2)+"px";
+          container.appendChild(line);
+        }
+      });
+    }
+    const today = new Date(); today.setHours(0,0,0,0);
+    const offsetToday = Math.round((today - fromDate)/MS_DAY);
+    if(offsetToday >= 0 && offsetToday < totalDays){
+      const line = document.createElement("div");
+      line.className = "gantt-todayline";
+      line.style.left = (offsetToday*dayWidth + dayWidth/2)+"px";
+      container.appendChild(line);
+    }
+  }
+  function buildMonthHeader(container, fromDate, totalDays, dayWidth){
+    container.innerHTML = "";
+    container.style.position = "relative";
+    container.style.width = (totalDays*dayWidth)+"px";
+    let cursor = new Date(fromDate);
+    let i = 0;
+    while(i < totalDays){
+      const monthStartOffset = i;
+      const y = cursor.getFullYear(), m = cursor.getMonth();
+      const daysInThisMonth = new Date(y, m+1, 0).getDate();
+      const dayOfMonth = cursor.getDate();
+      const remainingInMonth = Math.min(daysInThisMonth - dayOfMonth + 1, totalDays - i);
+      const label = document.createElement("div");
+      label.className = "gantt-month-label";
+      label.style.left = (monthStartOffset*dayWidth)+"px";
+      label.style.width = (remainingInMonth*dayWidth)+"px";
+      label.textContent = MONTH_SHORT[m] + " " + y;
+      container.appendChild(label);
+      i += remainingInMonth;
+      cursor = addDays(cursor, remainingInMonth);
+    }
+  }
+
+  // Hält eine Zeile (z. B. die Monats-/Zeitachsen-Zeile) beim vertikalen Scrollen des
+  // umgebenden .gantt-wrap optisch oben "angeheftet". Reines CSS position:sticky reicht
+  // hier nicht aus, weil die Zeile in einem horizontal scrollenden Container (.gantt-scroll,
+  // overflow-x:auto) verschachtelt ist, der als eigener Sticky-Bezugsrahmen dazwischenfunkt.
+  function pinRowToScroll(wrapEl, rowEl){
+    if(!wrapEl || !rowEl) return;
+    const onScroll = () => { rowEl.style.transform = wrapEl.scrollTop ? `translateY(${wrapEl.scrollTop}px)` : ""; };
+    wrapEl.addEventListener("scroll", onScroll);
+    onScroll();
+  }
+
+  // Zeigt beim Überfahren der Zeitachsen-Zeile (Monatsraster) das darunterliegende Datum an.
+  function attachTimelineHover(rowEl, rangeStart, dayWidth, totalDays){
+    rowEl.addEventListener("mousemove", (e) => {
+      const rect = rowEl.getBoundingClientRect();
+      let dayIdx = Math.floor((e.clientX - rect.left) / dayWidth);
+      dayIdx = Math.max(0, Math.min(totalDays - 1, dayIdx));
+      showTip(`<b>${fmtDate(addDays(rangeStart, dayIdx))}</b>`, e.clientX, e.clientY);
+    });
+    rowEl.addEventListener("mouseleave", hideTip);
+  }
+
+  /* ---------------- View: Übersicht ---------------- */
+  function renderOverview(root){
+    document.getElementById("topTitle").textContent = "Übersicht";
+    document.getElementById("topSubtitle").textContent = "Alle Releases auf einer gemeinsamen Zeitachse";
+    document.getElementById("topActions").innerHTML = "";
+
+    if(state.releases.length === 0){
+      root.innerHTML = `<div class="empty">Noch keine Releases angelegt. Klicke links auf „Neues Release“.</div>`;
+      return;
+    }
+
+    const schedules = state.releases.map(r => ({ release:r, sched: computeSchedule(r) }));
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // Kennzahlen
+    const totalTasks = schedules.reduce((s,x)=>s+x.release.tasks.length,0);
+    const doneTasks = schedules.reduce((s,x)=>s+x.release.tasks.filter(t=>t.done).length,0);
+    let nextRelease = null, nextDiff = Infinity;
+    schedules.forEach(x=>{
+      const diff = Math.round((parseISO(x.release.anchor) - today)/MS_DAY);
+      if(diff >= 0 && diff < nextDiff){ nextDiff = diff; nextRelease = x.release; }
+    });
+
+    let minStart = schedules[0].sched.minStart, maxEnd = schedules[0].sched.maxEnd;
+    schedules.forEach(x=>{
+      if(x.sched.minStart < minStart) minStart = x.sched.minStart;
+      if(x.sched.maxEnd > maxEnd) maxEnd = x.sched.maxEnd;
+    });
+    const rangeStart = addDays(new Date(Math.min(minStart, today)), -5);
+    const rangeEnd = addDays(new Date(Math.max(maxEnd, today)), 8);
+    const totalDays = Math.max(1, Math.round((rangeEnd - rangeStart)/MS_DAY));
+    // Übersicht zeigt den kompletten Zeitraum ohne Scrollen: Tagesbreite an verfügbare Breite anpassen
+    const availableWidth = Math.max(360, document.querySelector(".main").clientWidth - 280 - 56 - 20);
+    const dayWidth = Math.max(2.2, Math.min(22, availableWidth / totalDays));
+
+    const cardsHtml = `
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Releases</div>
+          <div class="card-value mono">${schedules.length}</div>
+          <div class="card-sub">in Planung / Umsetzung</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Aufgaben gesamt</div>
+          <div class="card-value mono">${doneTasks}/${totalTasks}</div>
+          <div class="progress" style="margin-top:8px;"><i style="width:${totalTasks? (100*doneTasks/totalTasks):0}%"></i></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Nächster Release</div>
+          <div class="card-value" style="font-size:17px;">${nextRelease ? esc(nextRelease.name) : "–"}</div>
+          <div class="card-sub">${nextRelease ? ("in "+nextDiff+" Tag"+(nextDiff===1?"":"en")+" · "+fmtDateShort(parseISO(nextRelease.anchor))) : "kein bevorstehender Termin"}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Zeitraum</div>
+          <div class="card-value" style="font-size:16px;">${fmtDateShort(minStart)} – ${fmtDateShort(maxEnd)}</div>
+          <div class="card-sub">frühester Start bis spätestes Ende</div>
+        </div>
+      </div>`;
+
+    root.innerHTML = cardsHtml + `
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Release-Zeitachse</h2>
+          <div class="legend">
+            <span><span class="legend-swatch" style="background:var(--accent)"></span>Zeitraum</span>
+            <span><span class="legend-swatch" style="background:var(--weekend)"></span>Wochenende</span>
+            <span><span class="legend-swatch" style="background:var(--holiday-soft)"></span>Feiertag (BW)</span>
+            <span><span class="legend-swatch" style="background:var(--today)"></span>Heute</span>
+          </div>
+        </div>
+        <div class="gantt-wrap">
+          <div class="gantt-fixed">
+            <div class="gantt-row head">Release</div>
+            ${schedules.map(x=>`<div class="gantt-row" data-rel="${x.release.id}" style="cursor:pointer;">
+                <span class="nav-dot" style="background:${statusMeta(x.release.status).dot};"></span>
+                <span class="gantt-name">${esc(x.release.name)}</span>
+                ${statusPill(x.release.status)}
+              </div>`).join("")}
+          </div>
+          <div class="gantt-scroll" id="ovScroll">
+            <div class="gantt-month-row" id="ovMonths" style="height:40px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
+            ${schedules.map(x=>`
+              <div class="gantt-row" style="position:relative; width:${totalDays*dayWidth}px;">
+                <div class="gantt-track" style="width:${totalDays*dayWidth}px;" data-bgtrack></div>
+              </div>`).join("")}
+          </div>
+        </div>
+      </div>`;
+
+    const ovMonthsEl = document.getElementById("ovMonths");
+    buildMonthHeader(ovMonthsEl, rangeStart, totalDays, dayWidth);
+    attachTimelineHover(ovMonthsEl, rangeStart, dayWidth, totalDays);
+    pinRowToScroll(ovMonthsEl.closest(".gantt-wrap"), ovMonthsEl);
+    const tracks = root.querySelectorAll("[data-bgtrack]");
+    tracks.forEach((track, i) => {
+      const x = schedules[i];
+      const milestones = getMilestones(x.release, x.sched);
+      const milestoneOffsets = milestones.map(m => Math.round((m.date - rangeStart)/MS_DAY));
+      buildDayBackground(track, rangeStart, totalDays, dayWidth, milestoneOffsets);
+      const startOffset = Math.round((x.sched.minStart - rangeStart)/MS_DAY);
+      const endOffset = Math.round((x.sched.maxEnd - rangeStart)/MS_DAY);
+      const doneCount = x.release.tasks.filter(t=>t.done).length;
+      const pct = x.release.tasks.length ? Math.round(100*doneCount/x.release.tasks.length) : 0;
+      const overdueCount = x.release.tasks.filter((t,ti)=>!t.done && x.sched.ends[ti] < today).length;
+      const bar = document.createElement("div");
+      bar.className = "gantt-bar overview status-"+x.release.status + (overdueCount>0 ? " overdue" : "");
+      bar.style.left = (startOffset*dayWidth)+"px";
+      bar.style.width = Math.max(dayWidth, (endOffset-startOffset+1)*dayWidth - 3)+"px";
+      bar.textContent = pct+"%";
+      bar.addEventListener("mousemove", (e)=>{
+        showTip(`<b>${esc(x.release.name)}</b><br>${fmtDate(x.sched.minStart)} → ${fmtDate(x.sched.maxEnd)}<br>${doneCount}/${x.release.tasks.length} Aufgaben erledigt` + (overdueCount>0?`<br><span style="color:#f3a39d;">${overdueCount} in Verzug</span>`:""), e.clientX, e.clientY);
+      });
+      bar.addEventListener("mouseleave", hideTip);
+      track.appendChild(bar);
+    });
+    root.querySelectorAll(".gantt-fixed [data-rel]").forEach(row=>{
+      row.onclick = () => { state.activeId = row.dataset.rel; saveState(); renderAll(); };
+    });
+    // Nur scrollen, wenn die Zeitachse breiter ist als der sichtbare Bereich
+    const scrollEl = document.getElementById("ovScroll");
+    if(scrollEl.scrollWidth > scrollEl.clientWidth + 4){
+      const todayOffset = Math.round((today - rangeStart)/MS_DAY);
+      scrollEl.scrollLeft = Math.max(0, todayOffset*dayWidth - 220);
+    }
+  }
+
+  /* ---------------- View: Release-Detail ---------------- */
+  function renderRelease(root, release){
+    document.getElementById("topTitle").innerHTML = "";
+    const titleWrap = document.getElementById("topTitle");
+    titleWrap.style.display = "flex";
+    titleWrap.style.alignItems = "center";
+    titleWrap.style.gap = "10px";
+    const input = document.createElement("input");
+    input.className = "rename-input";
+    input.value = release.name;
+    input.setAttribute("aria-label","Release-Name");
+    input.oninput = () => { release.name = input.value; saveState(); renderNav(); scheduleSyncPush(release); };
+    input.onblur = () => { if(!release.name.trim()){ release.name = "Release"; input.value = release.name; saveState(); renderNav(); scheduleSyncPush(release); } };
+    titleWrap.appendChild(input);
+    const statusWrap = document.createElement("span");
+    statusWrap.innerHTML = statusPill(release.status);
+    titleWrap.appendChild(statusWrap);
+
+    const sched = computeSchedule(release);
+    document.getElementById("topSubtitle").textContent =
+      (release.mode === "Start" ? "Vorwärtsplanung ab " : "Rückwärtsplanung zu ") + fmtDate(parseISO(release.anchor));
+
+    const jiraUrl = "https://jira.komm-one.net/projects/UNITYP?selectedItem=com.atlassian.jira.jira-projects-plugin:release-page&status=released-unreleased&contains="
+      + encodeURIComponent(fmtDateShort(parseISO(release.anchor)));
+
+    const actions = document.getElementById("topActions");
+    actions.innerHTML = `<a class="btn btn-sm" id="btnJira" href="${escAttr(jiraUrl)}" target="_blank" rel="noopener noreferrer" title="Zugehörige Versionen dieses Releases in Jira öffnen">Versionen in Jira&nbsp;&#8599;</a><button class="btn btn-sm" id="btnToday">Heute anzeigen</button><button class="btn btn-sm" id="btnDuplicate">Duplizieren</button>`;
+    actions.querySelector("#btnDuplicate").onclick = () => duplicateRelease(release);
+    actions.querySelector("#btnToday").onclick = () => scrollGanttToToday();
+
+    const doneCount = release.tasks.filter(t=>t.done).length;
+    const pct = release.tasks.length ? Math.round(100*doneCount/release.tasks.length) : 0;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const daysToAnchor = Math.round((parseISO(release.anchor) - today)/MS_DAY);
+    const overdueCount = release.tasks.filter((t,i)=>!t.done && sched.ends[i] < today).length;
+
+    const cardsHtml = `
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Fortschritt</div>
+          <div class="card-value mono">${pct}%</div>
+          <div class="progress" style="margin-top:8px;"><i style="width:${pct}%"></i></div>
+          <div class="card-sub">${doneCount} von ${release.tasks.length} Schritten erledigt</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Geplanter Start</div>
+          <div class="card-value" style="font-size:17px;">${fmtDateShort(sched.minStart)}</div>
+          <div class="card-sub">${fmtDate(sched.minStart)}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Geplantes Ende</div>
+          <div class="card-value" style="font-size:17px;">${fmtDateShort(sched.maxEnd)}</div>
+          <div class="card-sub">${fmtDate(sched.maxEnd)}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">${release.mode==="Start" ? "Tage seit Start" : "Tage bis Zieltermin"}</div>
+          <div class="card-value mono">${Math.abs(daysToAnchor)}</div>
+          <div class="card-sub">${daysToAnchor>=0? "verbleibend" : "überfällig"}</div>
+        </div>
+      </div>`;
+
+    const configHtml = `
+      <div class="panel">
+        <div class="panel-head"><h2>Planungsmodus &amp; Status</h2>
+          <span class="hint">Modus bestimmt die Terminrichtung, Status ist eine manuelle Einordnung</span>
+        </div>
+        <div class="panel-body config-grid">
+          <div class="config-field">
+            <label>Modus</label>
+            <select class="field" id="modeSelect" style="width:100%;">
+              <option value="Publishing" ${release.mode==="Publishing"?"selected":""}>Publishing (Zieldatum → rückwärts)</option>
+              <option value="Start" ${release.mode==="Start"?"selected":""}>Start (Startdatum → vorwärts)</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>${release.mode==="Start" ? "Startdatum" : "Ziel-/Veröffentlichungsdatum"}</label>
+            <input class="field" type="date" id="anchorInput" value="${release.anchor}" style="width:100%;">
+          </div>
+          <div class="config-field">
+            <label>Status</label>
+            <div class="status-group" id="statusGroup">
+              <button type="button" class="status-opt sel-open ${release.status==="open"?"active":""}" data-status="open"><span class="dot" style="background:${STATUS_META.open.dot};"></span>Offen</button>
+              <button type="button" class="status-opt sel-active ${release.status==="active"?"active":""}" data-status="active"><span class="dot" style="background:${STATUS_META.active.dot};"></span>Laufend</button>
+              <button type="button" class="status-opt sel-released ${release.status==="released"?"active":""}" data-status="released"><span class="dot" style="background:${STATUS_META.released.dot};"></span>Veröffentlicht</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const overdueBannerHtml = overdueCount>0 ? `
+      <div class="panel" style="border-color:var(--critical);">
+        <div class="panel-body" style="display:flex; align-items:center; gap:10px; padding:12px 18px;">
+          <span class="pill pill-critical">${overdueCount} Aufgabe${overdueCount===1?"":"n"} in Verzug</span>
+          <span class="hint">Geplantes Ende liegt vor heute, aber noch nicht als erledigt markiert.</span>
+        </div>
+      </div>` : "";
+
+    root.innerHTML = cardsHtml + configHtml + overdueBannerHtml + `
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Ablaufplan</h2>
+          <div class="legend">
+            <span><span class="legend-swatch" style="background:var(--success)"></span>Erledigt</span>
+            <span><span class="legend-swatch" style="background:var(--accent)"></span>Geplant</span>
+            <span><span class="legend-swatch" style="background:var(--weekend)"></span>Wochenende</span>
+            <span><span class="legend-swatch" style="background:var(--holiday-soft)"></span>Feiertag (BW)</span>
+            <span><span class="legend-swatch" style="background:var(--today)"></span>Heute</span>
+            <span><span class="legend-swatch" style="border:2px dashed var(--warning); background:transparent;"></span>Meilenstein</span>
+          </div>
+        </div>
+        <div class="gantt-wrap">
+          <div class="gantt-fixed" id="relFixed" style="width:320px;"></div>
+          <div class="gantt-scroll" id="relScroll">
+            <div class="gantt-month-row" id="relMonths" style="height:40px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
+            <div id="relRowsHost"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Aufgaben bearbeiten</h2>
+          <span class="hint">Dauer und Puffer in Arbeitstagen (Mo–Fr, ohne Feiertage) — Änderungen aktualisieren den Ablaufplan sofort</span>
+        </div>
+        <div class="panel-body" style="padding:0; overflow-x:auto;">
+          <div class="task-table-toolbar" id="taskTableToolbar"></div>
+          <table class="tasks" id="taskTable"></table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Notizen &amp; Risiken</h2>
+          <span class="hint">Freitext — z. B. offene Entscheidungen, Risiken, Lessons Learned</span>
+        </div>
+        <div class="panel-body">
+          <textarea class="notes-area" id="notesArea" placeholder="z. B. Risiken, Abhängigkeiten zu anderen Teams, offene Entscheidungen …">${esc(release.notes||"")}</textarea>
+        </div>
+      </div>`;
+
+    root.querySelector("#modeSelect").onchange = (e) => {
+      release.mode = e.target.value; saveState(); renderAll(); scheduleSyncPush(release);
+    };
+    root.querySelector("#anchorInput").onchange = (e) => {
+      if(e.target.value){ release.anchor = e.target.value; saveState(); renderAll(); scheduleSyncPush(release); }
+    };
+    root.querySelectorAll("#statusGroup .status-opt").forEach(btn => {
+      btn.onclick = () => { release.status = btn.dataset.status; saveState(); renderAll(); scheduleSyncPush(release); };
+    });
+    root.querySelector("#notesArea").onchange = (e) => {
+      release.notes = e.target.value; saveState(); scheduleSyncPush(release);
+    };
+
+    renderTaskTable(root.querySelector("#taskTable"), release);
+    renderReleaseGantt(release, sched);
+    // Beim ersten Öffnen: "Heute" zeigen, wenn es im Planungszeitraum liegt, sonst den Anfang des Plans.
+    if(today >= sched.minStart && today <= sched.maxEnd){
+      scrollGanttToToday();
+    } else {
+      const scrollEl = document.getElementById("relScroll");
+      if(scrollEl) scrollEl.scrollLeft = 0;
+    }
+    // vertikal zum ersten offenen Schritt scrollen, damit der aktuelle Stand sofort sichtbar ist
+    const firstOpenIdx = release.tasks.findIndex(t => !t.done);
+    if(firstOpenIdx > 0){
+      const wrap = document.querySelector(".gantt-wrap");
+      const rows = document.querySelectorAll("#relFixed .gantt-row:not(.head)");
+      if(wrap && rows[firstOpenIdx]){
+        wrap.scrollTop = Math.max(0, rows[firstOpenIdx].offsetTop - 80);
+      }
+    }
+  }
+
+  function scrollGanttToToday(){
+    const line = document.querySelector("#relRowsHost .gantt-todayline");
+    const scrollEl = document.getElementById("relScroll");
+    if(line && scrollEl){
+      const target = parseFloat(line.style.left) - scrollEl.clientWidth/2;
+      scrollEl.scrollLeft = Math.max(0, target);
+    }
+  }
+
+  // Wächst eine <textarea> automatisch mit ihrem Inhalt, statt den Text abzuschneiden.
+  function autoGrowTextarea(el){
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+
+  const TASK_COL_LABELS = { name:"Schritt", resp:"Verantwortlich", duration:"Dauer", lag:"Puffer", start:"Start", end:"Ende", done:"Status" };
+
+  function taskFilterMatches(col, filterVal, rawValue){
+    if(filterVal == null || filterVal === "") return true;
+    const f = String(filterVal).trim();
+    if(col === "done"){
+      return f === "" || (f === "open" ? !rawValue : !!rawValue);
+    }
+    if(col === "duration" || col === "lag"){
+      const m = f.match(/^(>=|<=|>|<|=)?\s*(-?\d+(?:[.,]\d+)?)$/);
+      if(m){
+        const op = m[1] || "=";
+        const num = parseFloat(m[2].replace(",", "."));
+        const v = Number(rawValue) || 0;
+        if(op === ">") return v > num;
+        if(op === "<") return v < num;
+        if(op === ">=") return v >= num;
+        if(op === "<=") return v <= num;
+        return v === num;
+      }
+      return String(rawValue).toLowerCase().includes(f.toLowerCase());
+    }
+    return String(rawValue||"").toLowerCase().includes(f.toLowerCase());
+  }
+
+  function renderTaskTable(tableEl, release){
+    const ui = getTaskTableUI(release.id);
+    const sched = computeSchedule(release);
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // Zeilen mit allen (auch abgeleiteten) Werten aufbereiten — die ursprüngliche
+    // Reihenfolge im Array bleibt für die Terminberechnung maßgeblich; Filter/Sortierung
+    // wirken nur auf die Anzeige.
+    let rows = release.tasks.map((t, i) => ({
+      t, i,
+      start: sched.starts[i], end: sched.ends[i],
+      overdue: !t.done && sched.ends[i] < today
+    }));
+
+    const total = rows.length;
+    rows = rows.filter(r => {
+      const f = ui.filters;
+      return taskFilterMatches("name", f.name, r.t.name) &&
+        taskFilterMatches("resp", f.resp, r.t.resp) &&
+        taskFilterMatches("duration", f.duration, r.t.duration) &&
+        taskFilterMatches("lag", f.lag, r.t.lag) &&
+        taskFilterMatches("start", f.start, fmtDateShort(r.start)) &&
+        taskFilterMatches("end", f.end, fmtDateShort(r.end)) &&
+        taskFilterMatches("done", f.done, r.t.done);
+    });
+
+    if(ui.sortCol){
+      const col = ui.sortCol, dir = ui.sortDir;
+      const getVal = (r) => {
+        switch(col){
+          case "name": return (r.t.name||"").toLowerCase();
+          case "resp": return (r.t.resp||"").toLowerCase();
+          case "duration": return Number(r.t.duration)||0;
+          case "lag": return Number(r.t.lag)||0;
+          case "start": return r.start ? r.start.getTime() : 0;
+          case "end": return r.end ? r.end.getTime() : 0;
+          case "done": return r.t.done ? 1 : 0;
+          default: return 0;
+        }
+      };
+      rows = rows.slice().sort((a,b) => {
+        const va = getVal(a), vb = getVal(b);
+        if(va < vb) return -1*dir;
+        if(va > vb) return 1*dir;
+        return a.i - b.i;
+      });
+    }
+
+    const sortArrow = (col) => ui.sortCol === col ? `<span class="sort-arrow">${ui.sortDir===1?"▲":"▼"}</span>` : `<span class="sort-arrow sort-arrow-hint">⇅</span>`;
+    const filterVal = (col) => escAttr(ui.filters[col]||"");
+
+    tableEl.innerHTML = `
+      <colgroup>
+        <col style="width:34px;"><col style="width:40px;"><col><col style="width:22%;">
+        <col style="width:70px;"><col style="width:70px;"><col style="width:96px;"><col style="width:128px;">
+      </colgroup>
+      <thead>
+        <tr class="col-headers">
+          <th style="width:34px;"></th>
+          <th style="width:40px;">#</th>
+          <th class="sortable" data-sort="name">Schritt${sortArrow("name")}</th>
+          <th class="sortable" data-sort="resp">Verantwortlich${sortArrow("resp")}</th>
+          <th class="num-cell sortable" style="width:70px;" data-sort="duration">Dauer${sortArrow("duration")}</th>
+          <th class="num-cell sortable" style="width:70px;" data-sort="lag">Puffer${sortArrow("lag")}</th>
+          <th class="sortable" data-sort="start">Start${sortArrow("start")}</th>
+          <th class="sortable" data-sort="end">Ende${sortArrow("end")}</th>
+        </tr>
+        <tr class="col-filters">
+          <th></th>
+          <th>
+            <select class="col-filter-input" data-filter="done">
+              <option value="">Alle</option>
+              <option value="open" ${ui.filters.done==="open"?"selected":""}>Offen</option>
+              <option value="done" ${ui.filters.done==="done"?"selected":""}>Erledigt</option>
+            </select>
+          </th>
+          <th><input class="col-filter-input" data-filter="name" placeholder="Filtern…" value="${filterVal("name")}"></th>
+          <th><input class="col-filter-input" data-filter="resp" placeholder="Filtern…" value="${filterVal("resp")}"></th>
+          <th><input class="col-filter-input num-cell" data-filter="duration" placeholder="z. B. >5" value="${filterVal("duration")}"></th>
+          <th><input class="col-filter-input num-cell" data-filter="lag" placeholder="z. B. >5" value="${filterVal("lag")}"></th>
+          <th><input class="col-filter-input" data-filter="start" placeholder="TT.MM." value="${filterVal("start")}"></th>
+          <th><input class="col-filter-input" data-filter="end" placeholder="TT.MM." value="${filterVal("end")}"></th>
+        </tr>
+      </thead>
+      <tbody id="taskBody"></tbody>`;
+
+    const body = tableEl.querySelector("#taskBody");
+
+    if(rows.length === 0){
+      body.innerHTML = `<tr><td colspan="8" class="empty">Keine Aufgaben entsprechen den aktuellen Filtern.</td></tr>`;
+    }
+
+    rows.forEach(({t, i, start, end, overdue}) => {
+      const tr = document.createElement("tr");
+      tr.className = t.done ? "done" : "";
+      tr.innerHTML = `
+        <td><input type="checkbox" class="chk" ${t.done?"checked":""}></td>
+        <td class="mono" style="color:var(--ink-faint);">${i+1}</td>
+        <td><div class="task-name-cell"><textarea class="text-input textarea-auto task-name" rows="1">${esc(t.name)}</textarea>${isMilestoneTask(t.name)?'<span class="pill pill-warning" style="flex:none;">Meilenstein</span>':""}</div></td>
+        <td><textarea class="text-input textarea-auto resp-input" rows="1">${esc(t.resp||"")}</textarea></td>
+        <td class="num-cell"><input type="number" min="0" class="num-input dur-input" value="${t.duration}"></td>
+        <td class="num-cell"><input type="number" min="0" class="num-input lag-input" value="${t.lag}"></td>
+        <td class="date-cell">${fmtDateShort(start)}</td>
+        <td class="date-cell">${fmtDateShort(end)} ${overdue?'<span class="pill pill-critical" style="margin-left:6px;">Verzug</span>':""}</td>`;
+      tr.querySelector(".chk").onchange = (e) => { t.done = e.target.checked; saveState(); renderAll(); scheduleSyncPush(release); };
+      const nameArea = tr.querySelector(".task-name");
+      nameArea.oninput = () => autoGrowTextarea(nameArea);
+      nameArea.onkeydown = (e) => { if(e.key === "Enter"){ e.preventDefault(); nameArea.blur(); } };
+      nameArea.onchange = (e) => { t.name = e.target.value; saveState(); renderAll(); scheduleSyncPush(release); };
+      const respArea = tr.querySelector(".resp-input");
+      respArea.oninput = () => autoGrowTextarea(respArea);
+      respArea.onkeydown = (e) => { if(e.key === "Enter"){ e.preventDefault(); respArea.blur(); } };
+      respArea.onchange = (e) => { t.resp = e.target.value; saveState(); renderAll(); scheduleSyncPush(release); };
+      tr.querySelector(".dur-input").onchange = (e) => { t.duration = Math.max(0, parseInt(e.target.value)||0); saveState(); renderAll(); scheduleSyncPush(release); };
+      tr.querySelector(".lag-input").onchange = (e) => { t.lag = Math.max(0, parseInt(e.target.value)||0); saveState(); renderAll(); scheduleSyncPush(release); };
+      body.appendChild(tr);
+    });
+
+    // Erst NACH dem Einhängen ins DOM lässt sich die benötigte Höhe korrekt messen
+    // (scrollHeight eines noch nicht angehängten Elements ist immer 0).
+    body.querySelectorAll("textarea.textarea-auto").forEach(autoGrowTextarea);
+
+    // Sortier-Klicks auf die Spaltenköpfe
+    tableEl.querySelectorAll("th.sortable").forEach(th => {
+      th.onclick = () => {
+        const col = th.dataset.sort;
+        if(ui.sortCol !== col){ ui.sortCol = col; ui.sortDir = 1; }
+        else if(ui.sortDir === 1){ ui.sortDir = -1; }
+        else { ui.sortCol = null; ui.sortDir = 1; }
+        renderTaskTable(tableEl, release);
+      };
+    });
+
+    // Spaltenfilter — Fokus/Cursorposition bleibt beim Tippen erhalten
+    tableEl.querySelectorAll(".col-filter-input").forEach(inputEl => {
+      const col = inputEl.dataset.filter;
+      const evt = inputEl.tagName === "SELECT" ? "change" : "input";
+      inputEl.addEventListener(evt, () => {
+        const selStart = inputEl.selectionStart, selEnd = inputEl.selectionEnd;
+        ui.filters[col] = inputEl.value;
+        renderTaskTable(tableEl, release);
+        const again = tableEl.querySelector(`.col-filter-input[data-filter="${col}"]`);
+        if(again){
+          again.focus();
+          if(typeof selStart === "number" && again.setSelectionRange){
+            try{ again.setSelectionRange(selStart, selEnd); }catch(e){}
+          }
+        }
+      });
+    });
+
+    renderTaskTableToolbar(tableEl, release, ui, rows.length, total);
+  }
+
+  function renderTaskTableToolbar(tableEl, release, ui, shown, total){
+    const toolbar = tableEl.parentElement && tableEl.parentElement.querySelector("#taskTableToolbar");
+    if(!toolbar) return;
+    const hasFilter = Object.values(ui.filters).some(v => v);
+    const hasSort = !!ui.sortCol;
+    let countText = shown === total ? `${total} Aufgabe${total===1?"":"n"}` : `${shown} von ${total} Aufgaben angezeigt`;
+    toolbar.innerHTML = `
+      <span class="task-table-count">${countText}</span>
+      ${(hasFilter||hasSort) ? '<button type="button" class="btn btn-ghost btn-sm" id="taskFilterReset">Filter &amp; Sortierung zurücksetzen</button>' : ""}`;
+    const resetBtn = toolbar.querySelector("#taskFilterReset");
+    if(resetBtn){
+      resetBtn.onclick = () => {
+        ui.filters = {}; ui.sortCol = null; ui.sortDir = 1;
+        renderTaskTable(tableEl, release);
+      };
+    }
+  }
+
+  function renderReleaseGantt(release, sched){
+    const fixed = document.getElementById("relFixed");
+    const rowsHost = document.getElementById("relRowsHost");
+    fixed.innerHTML = `<div class="gantt-row head">Schritt</div>`;
+    rowsHost.innerHTML = "";
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const rangeStart = addDays(new Date(Math.min(sched.minStart, today)), -3);
+    const rangeEnd = addDays(new Date(Math.max(sched.maxEnd, today)), 4);
+    const totalDays = Math.max(1, Math.round((rangeEnd - rangeStart)/MS_DAY));
+    const dayWidth = state.dayWidth;
+
+    const monthsEl = document.getElementById("relMonths");
+    buildMonthHeader(monthsEl, rangeStart, totalDays, dayWidth);
+    attachTimelineHover(monthsEl, rangeStart, dayWidth, totalDays);
+    pinRowToScroll(monthsEl.closest(".gantt-wrap"), monthsEl);
+
+    const milestones = getMilestones(release, sched);
+    const milestoneOffsets = milestones.map(m => Math.round((m.date - rangeStart)/MS_DAY));
+    milestones.forEach((m,mi) => {
+      const off = milestoneOffsets[mi];
+      if(off < 0 || off >= totalDays) return;
+      const flag = document.createElement("div");
+      flag.className = "gantt-milestone-flag";
+      flag.style.left = (off*dayWidth + dayWidth/2)+"px";
+      flag.style.bottom = "2px";
+      flag.textContent = m.label;
+      flag.title = m.label + " · " + fmtDate(m.date);
+      monthsEl.appendChild(flag);
+    });
+
+    release.tasks.forEach((t,i) => {
+      const overdue = !t.done && sched.ends[i] < today;
+      const nameRow = document.createElement("div");
+      nameRow.className = "gantt-row";
+      nameRow.innerHTML = `<span class="gantt-name" title="${escAttr(t.name)}">${esc(t.name)}</span>` +
+        (isMilestoneTask(t.name) ? `<span class="pill pill-warning" style="flex:none;">Meilenstein</span>` : "") +
+        (overdue ? `<span class="pill pill-critical" style="flex:none;">Verzug</span>` : "");
+      fixed.appendChild(nameRow);
+
+      const track = document.createElement("div");
+      track.className = "gantt-row";
+      track.style.width = (totalDays*dayWidth)+"px";
+      track.style.position = "relative";
+      const bg = document.createElement("div");
+      bg.className = "gantt-track";
+      bg.style.width = (totalDays*dayWidth)+"px";
+      buildDayBackground(bg, rangeStart, totalDays, dayWidth, milestoneOffsets);
+      const startOffset = Math.round((sched.starts[i] - rangeStart)/MS_DAY);
+      const endOffset = Math.round((sched.ends[i] - rangeStart)/MS_DAY);
+      const bar = document.createElement("div");
+      bar.className = "gantt-bar" + (t.done ? " done" : "") + (overdue ? " overdue" : "");
+      bar.style.left = (startOffset*dayWidth)+"px";
+      bar.style.width = Math.max(dayWidth-2, (endOffset-startOffset+1)*dayWidth - 3)+"px";
+      bar.textContent = (t.duration>1 ? (t.duration+"AT") : "");
+      bar.addEventListener("mousemove", (e)=>{
+        showTip(`<b>${esc(t.name)}</b><br>${fmtDate(sched.starts[i])} → ${fmtDate(sched.ends[i])}<br>Verantwortlich: ${esc(t.resp||"–")}` + (overdue ? `<br><span style="color:#f3a39d;">in Verzug</span>` : ""), e.clientX, e.clientY);
+      });
+      bar.addEventListener("mouseleave", hideTip);
+      bg.appendChild(bar);
+      track.appendChild(bg);
+      rowsHost.appendChild(track);
+    });
+
+    // sync vertical scroll between fixed names & bars implicitly (both are simple stacked divs, no independent scroll needed)
+  }
+
+  function duplicateRelease(release){
+    const copy = JSON.parse(JSON.stringify(release));
+    copy.id = "r_"+Math.random().toString(36).slice(2,9);
+    copy.dbId = null;
+    copy.updatedAt = new Date().toISOString();
+    copy.name = release.name + " (Kopie)";
+    copy.status = "open";
+    copy.tasks.forEach(t => { t.id = "t_"+Math.random().toString(36).slice(2,9); t.done = false; });
+    state.releases.push(copy);
+    state.activeId = copy.id;
+    saveState(); renderAll();
+    scheduleSyncPush(copy);
+  }
+
+  /* ---------------- Utility ---------------- */
+  function esc(s){ return String(s==null?"":s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+  function escAttr(s){ return esc(s).replace(/"/g,"&quot;"); }
+
+  /* ---------------- Root render ---------------- */
+  function renderAll(){
+    renderNav();
+    const root = document.getElementById("viewRoot");
+    root.innerHTML = "";
+    if(state.activeId === "overview"){
+      document.getElementById("topActions").innerHTML = "";
+      renderOverview(root);
+    } else {
+      const rel = getRelease(state.activeId);
+      if(!rel){ state.activeId = "overview"; renderAll(); return; }
+      renderRelease(root, rel);
+    }
+  }
+
+  /* ---------------- Sidebar ein-/ausklappen ---------------- */
+  function setSidebarCollapsed(collapsed){
+    state.sidebarCollapsed = collapsed;
+    document.getElementById("sideNav").classList.toggle("collapsed", collapsed);
+    saveState();
+  }
+
+  /* ===================== Cloud-Sync (Supabase: Datenbank + Auth + Realtime) =====================
+     Optional: nur aktiv, wenn window.RELEASE_RADAR_CONFIG.enabled === true (siehe HTML-Kopf).
+     Architektur: jedes Release entspricht einer Zeile in der Postgres-Tabelle "releases"
+     (Spalten: id, name, mode, anchor, status, notes, tasks [jsonb], updated_at).
+     - Anmeldung: Supabase Auth mit Microsoft (Azure) als OAuth-Provider (Redirect-Flow).
+     - Push: 1.4s nach der letzten Änderung eines Releases (debounced), pro Release einzeln.
+     - Pull/Live-Updates: Supabase Realtime (Postgres-Änderungen kommen sofort per Websocket);
+       zusätzlich alle 45s ein Fallback-Abgleich, falls die Realtime-Verbindung unterbrochen ist.
+     - Konfliktauflösung: "last write wins" anhand updated_at (ISO-Zeitstempel); ein Release,
+       für das gerade ein lokaler Push aussteht, wird von eingehenden Updates nicht überschrieben.
+  ============================================================================================= */
+  const CFG = (typeof window !== "undefined" && window.RELEASE_RADAR_CONFIG) || { enabled:false };
+  const SYNC_ENABLED = !!CFG.enabled;
+  let supabaseClient = null, currentUser = null, realtimeChannel = null;
+  let lastSyncAt = null, pollTimer = null, syncing = false, lastSyncError = null;
+  const dirtyKeys = new Set();      // dbId (oder lokale id, falls noch nicht angelegt) mit ausstehendem Push
+  const pushTimers = new Map();     // release.id -> setTimeout-Handle
+
+  function userDisplayName(){
+    if(!currentUser) return "";
+    return (currentUser.user_metadata && currentUser.user_metadata.full_name) || currentUser.email || "Angemeldet";
+  }
+  function userInitial(){
+    const n = userDisplayName();
+    return n ? n.trim().charAt(0).toUpperCase() : "?";
+  }
+  function updateSyncUI(){
+    const bar = document.getElementById("syncBar");
+    if(!bar) return;
+    if(!SYNC_ENABLED){ bar.style.display = "none"; return; }
+    bar.style.display = "flex";
+    const avatar = document.getElementById("syncAvatar");
+    const nameEl = document.getElementById("syncName");
+    const dot = document.getElementById("syncDot");
+    const text = document.getElementById("syncText");
+    if(!currentUser){
+      avatar.className = "sync-avatar";
+      avatar.textContent = "?";
+      nameEl.textContent = "Nicht angemeldet";
+      nameEl.title = "";
+      dot.className = "sync-dot";
+      text.textContent = "Bitte anmelden";
+    } else {
+      const displayName = userDisplayName();
+      avatar.className = "sync-avatar ok";
+      avatar.textContent = userInitial();
+      nameEl.textContent = displayName;
+      nameEl.title = displayName;
+      if(syncing){
+        dot.className = "sync-dot busy";
+        text.textContent = "Synchronisiere …";
+      } else if(lastSyncError){
+        dot.className = "sync-dot err";
+        text.textContent = "Fehler: " + lastSyncError;
+      } else {
+        dot.className = "sync-dot ok";
+        const when = lastSyncAt ? lastSyncAt.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : "–";
+        text.textContent = "Aktuell · " + when;
+        text.title = "Zuletzt synchronisiert um " + when + " Uhr";
+      }
+    }
+  }
+
+  async function initSupabase(){
+    if(!SYNC_ENABLED) return false;
+    if(typeof window.supabase === "undefined"){
+      lastSyncError = "supabase-js nicht geladen";
+      updateSyncUI();
+      return false;
+    }
+    supabaseClient = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
+    const { data } = await supabaseClient.auth.getSession();
+    if(data && data.session) currentUser = data.session.user;
+    // Zentrale Zustandsmaschine für Anmeldung/Abmeldung: reagiert auf ALLE Wege, sich an-
+    // oder abzumelden (Microsoft-SSO-Redirect, E-Mail/Passwort, automatisches Session-Refresh),
+    // damit Gate/Sync nicht an mehreren Stellen im Code redundant gesteuert werden müssen.
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if(event === "PASSWORD_RECOVERY"){
+        currentUser = session ? session.user : currentUser;
+        showRecoveryScreen();
+        return;
+      }
+      const hadUser = !!currentUser;
+      currentUser = session ? session.user : null;
+      updateSyncUI();
+      if(currentUser && !hadUser){
+        hideAuthGate();
+        initialCloudSync();
+      }else if(!currentUser && hadUser){
+        if(realtimeChannel){ supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; }
+        clearInterval(pollTimer);
+        showAuthGate();
+      }
+    });
+    return true;
+  }
+
+  function showAuthFormError(msg){
+    const errEl = document.getElementById("authError");
+    if(errEl){ errEl.textContent = msg; errEl.style.display = "block"; }
+  }
+  function clearAuthFormError(){
+    const errEl = document.getElementById("authError");
+    if(errEl) errEl.style.display = "none";
+  }
+  function showAuthEmailInfo(msg, success){
+    const el = document.getElementById("authEmailInfo");
+    if(!el) return;
+    el.textContent = msg;
+    el.className = "auth-info show" + (success ? " success" : "");
+  }
+  function clearAuthEmailInfo(){
+    const el = document.getElementById("authEmailInfo");
+    if(el){ el.textContent = ""; el.className = "auth-info"; }
+  }
+
+  async function signInSso(){
+    clearAuthFormError();
+    try{
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: "azure",
+        options:{ scopes:"email openid profile", redirectTo: window.location.href.split("#")[0].split("?")[0] }
+      });
+      if(error) throw error;
+      return true; // Browser verlässt jetzt die Seite (Redirect zur Microsoft-Anmeldung)
+    }catch(e){
+      showAuthFormError("Anmeldung fehlgeschlagen: " + (e && e.message ? e.message : e));
+      return false;
+    }
+  }
+
+  async function signInWithEmail(email, password){
+    clearAuthFormError();
+    if(!email || !password){ showAuthFormError("Bitte E-Mail-Adresse und Passwort eingeben."); return false; }
+    try{
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if(error) throw error;
+      return true; // onAuthStateChange übernimmt Gate schließen + Sync starten
+    }catch(e){
+      showAuthFormError(translateAuthError(e));
+      return false;
+    }
+  }
+
+  async function signUpWithEmail(email, password, passwordConfirm){
+    clearAuthFormError();
+    if(!email || !password){ showAuthFormError("Bitte E-Mail-Adresse und Passwort eingeben."); return false; }
+    if(password.length < 8){ showAuthFormError("Das Passwort muss mindestens 8 Zeichen lang sein."); return false; }
+    if(password !== passwordConfirm){ showAuthFormError("Die Passwörter stimmen nicht überein."); return false; }
+    try{
+      const { data, error } = await supabaseClient.auth.signUp({
+        email, password,
+        options:{ emailRedirectTo: window.location.href.split("#")[0].split("?")[0] }
+      });
+      if(error) throw error;
+      // Ist "Confirm email" in Supabase deaktiviert, liefert signUp direkt eine aktive Session
+      // (onAuthStateChange übernimmt dann automatisch); sonst muss der Bestätigungslink genutzt werden.
+      if(data && data.session){
+        return true;
+      }
+      setAuthEmailMode("signin");
+      showAuthEmailInfo("Konto erstellt. Wir haben Ihnen eine E-Mail zur Bestätigung geschickt — bitte bestätigen Sie Ihre Adresse über den enthaltenen Link und melden Sie sich anschließend an.", true);
+      return false;
+    }catch(e){
+      showAuthFormError(translateAuthError(e));
+      return false;
+    }
+  }
+
+  async function sendPasswordReset(email){
+    clearAuthFormError();
+    if(!email){ showAuthFormError("Bitte E-Mail-Adresse eingeben."); return false; }
+    try{
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.href.split("#")[0].split("?")[0]
+      });
+      if(error) throw error;
+      showAuthEmailInfo("Falls ein Konto mit dieser E-Mail-Adresse existiert, wurde soeben ein Link zum Zurücksetzen des Passworts verschickt.", true);
+      return true;
+    }catch(e){
+      showAuthFormError(translateAuthError(e));
+      return false;
+    }
+  }
+
+  async function updatePasswordFromRecovery(password, passwordConfirm){
+    const errEl = document.getElementById("authRecoveryError");
+    const showErr = (msg) => { if(errEl){ errEl.textContent = msg; errEl.style.display = "block"; } };
+    if(errEl) errEl.style.display = "none";
+    if(password.length < 8){ showErr("Das Passwort muss mindestens 8 Zeichen lang sein."); return false; }
+    if(password !== passwordConfirm){ showErr("Die Passwörter stimmen nicht überein."); return false; }
+    try{
+      const { error } = await supabaseClient.auth.updateUser({ password });
+      if(error) throw error;
+      hideRecoveryScreen();
+      hideAuthGate();
+      updateSyncUI();
+      await initialCloudSync();
+      return true;
+    }catch(e){
+      showErr(translateAuthError(e));
+      return false;
+    }
+  }
+
+  function requestSignOut(){
+    if(!supabaseClient) return;
+    // Gate/Sync-Aufräumarbeiten übernimmt zentral der onAuthStateChange-Listener in initSupabase().
+    supabaseClient.auth.signOut().catch(()=>{});
+  }
+
+  function translateAuthError(e){
+    const msg = (e && e.message) ? e.message : String(e);
+    if(/Invalid login credentials/i.test(msg)) return "E-Mail-Adresse oder Passwort ist falsch.";
+    if(/Email not confirmed/i.test(msg)) return "Diese E-Mail-Adresse wurde noch nicht bestätigt — bitte prüfen Sie Ihr Postfach.";
+    if(/User already registered/i.test(msg)) return "Für diese E-Mail-Adresse existiert bereits ein Konto. Bitte anmelden oder Passwort zurücksetzen.";
+    if(/rate limit/i.test(msg)) return "Zu viele Versuche — bitte kurz warten und erneut versuchen.";
+    return msg;
+  }
+
+  function dbToRelease(row){
+    return {
+      id: "sb_" + row.id,
+      dbId: row.id,
+      name: row.name || "Release",
+      mode: row.mode === "Start" ? "Start" : "Publishing",
+      anchor: row.anchor || toISO(new Date()),
+      status: STATUS_META[row.status] ? row.status : "open",
+      notes: row.notes || "",
+      tasks: Array.isArray(row.tasks) ? row.tasks : [],
+      updatedAt: row.updated_at || new Date(0).toISOString()
+    };
+  }
+  function releaseToRow(r){
+    return {
+      name: r.name,
+      mode: r.mode,
+      anchor: r.anchor,
+      status: r.status,
+      notes: r.notes || "",
+      tasks: r.tasks,
+      updated_at: r.updatedAt || new Date().toISOString()
+    };
+  }
+
+  async function pullAll(){
+    syncing = true; updateSyncUI();
+    try{
+      const { data, error } = await supabaseClient.from("releases").select("*");
+      if(error) throw error;
+      mergeRemote((data || []).map(dbToRelease));
+      lastSyncAt = new Date();
+      lastSyncError = null;
+    }catch(e){
+      lastSyncError = (e && e.message) ? e.message.slice(0,60) : "unbekannt";
+      console.warn("Release Radar: Abgleich fehlgeschlagen", e);
+    }finally{
+      syncing = false; updateSyncUI();
+    }
+  }
+
+  function mergeRemote(remoteReleases){
+    const localByDbId = new Map(state.releases.filter(r=>r.dbId).map(r=>[r.dbId, r]));
+    const remoteByDbId = new Map(remoteReleases.map(r=>[r.dbId, r]));
+    remoteReleases.forEach(rr => {
+      if(dirtyKeys.has(rr.dbId)) return; // lokaler Push steht aus -> nicht überschreiben
+      const local = localByDbId.get(rr.dbId);
+      if(!local){
+        state.releases.push(rr);
+      }else{
+        const remoteTs = Date.parse(rr.updatedAt || 0) || 0;
+        const localTs = Date.parse(local.updatedAt || 0) || 0;
+        if(remoteTs > localTs) Object.assign(local, rr, { id: local.id });
+      }
+    });
+    // Releases entfernen, die remote gelöscht wurden (außer wenn gerade ein lokaler Push aussteht)
+    state.releases = state.releases.filter(r => !r.dbId || remoteByDbId.has(r.dbId) || dirtyKeys.has(r.dbId));
+    if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    renderAll();
+  }
+
+  function handleRealtimeEvent(payload){
+    if(payload.eventType === "DELETE"){
+      const oldId = payload.old && payload.old.id;
+      if(!oldId || dirtyKeys.has(oldId)) return;
+      state.releases = state.releases.filter(r => r.dbId !== oldId);
+    }else{
+      const row = payload.new;
+      if(!row || dirtyKeys.has(row.id)) return;
+      const rr = dbToRelease(row);
+      const local = state.releases.find(r => r.dbId === rr.dbId);
+      if(!local) state.releases.push(rr);
+      else{
+        const remoteTs = Date.parse(rr.updatedAt || 0) || 0;
+        const localTs = Date.parse(local.updatedAt || 0) || 0;
+        if(remoteTs >= localTs) Object.assign(local, rr, { id: local.id });
+      }
+    }
+    if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    lastSyncAt = new Date();
+    renderAll(); updateSyncUI();
+  }
+
+  function subscribeRealtime(){
+    if(realtimeChannel || !supabaseClient) return;
+    realtimeChannel = supabaseClient.channel("releases-sync")
+      .on("postgres_changes", { event:"*", schema:"public", table:"releases" }, handleRealtimeEvent)
+      .subscribe();
+  }
+
+  async function pushRelease(release){
+    const key = release.dbId || release.id;
+    try{
+      const row = releaseToRow(release);
+      if(release.dbId){
+        const { error } = await supabaseClient.from("releases").update(row).eq("id", release.dbId);
+        if(error) throw error;
+      }else{
+        const { data, error } = await supabaseClient.from("releases").insert(row).select().single();
+        if(error) throw error;
+        release.dbId = data.id;
+        const oldId = release.id;
+        release.id = "sb_" + data.id;
+        if(state.activeId === oldId) state.activeId = release.id;
+        renderNav();
+      }
+      dirtyKeys.delete(key);
+      lastSyncError = null;
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    }catch(e){
+      lastSyncError = (e && e.message) ? e.message.slice(0,60) : "unbekannt";
+      console.warn("Release Radar: Speichern fehlgeschlagen", e);
+    }finally{
+      updateSyncUI();
+    }
+  }
+
+  async function deleteRemoteRelease(release){
+    if(!SYNC_ENABLED || !currentUser || !release || !release.dbId) return;
+    try{
+      const { error } = await supabaseClient.from("releases").delete().eq("id", release.dbId);
+      if(error) throw error;
+    }catch(e){
+      console.warn("Release Radar: Löschen in Supabase fehlgeschlagen", e);
+    }
+  }
+
+  function scheduleSyncPush(release){
+    if(!SYNC_ENABLED || !currentUser || !release) return;
+    release.updatedAt = new Date().toISOString();
+    dirtyKeys.add(release.dbId || release.id);
+    clearTimeout(pushTimers.get(release.id));
+    pushTimers.set(release.id, setTimeout(() => pushRelease(release), 1400));
+  }
+
+  function startFallbackPolling(){
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => { if(!syncing) pullAll(); }, 45000);
+  }
+
+  function showAuthGate(){
+    const gate = document.getElementById("authGate");
+    if(gate) gate.style.display = "flex";
+  }
+  function hideAuthGate(){
+    const gate = document.getElementById("authGate");
+    if(gate) gate.style.display = "none";
+  }
+  function showRecoveryScreen(){
+    showAuthGate();
+    const login = document.getElementById("authLoginScreen");
+    const recovery = document.getElementById("authRecoveryScreen");
+    if(login) login.hidden = true;
+    if(recovery) recovery.hidden = false;
+  }
+  function hideRecoveryScreen(){
+    const login = document.getElementById("authLoginScreen");
+    const recovery = document.getElementById("authRecoveryScreen");
+    if(login) login.hidden = false;
+    if(recovery) recovery.hidden = true;
+  }
+
+  // Tab "sso" / "email" innerhalb der Login-Ansicht
+  function setAuthTab(tab){
+    document.querySelectorAll("#authTabs .auth-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    const sso = document.getElementById("authPanelSso");
+    const email = document.getElementById("authPanelEmail");
+    if(sso) sso.hidden = tab !== "sso";
+    if(email) email.hidden = tab !== "email";
+    clearAuthFormError(); clearAuthEmailInfo();
+  }
+  // Modus innerhalb des E-Mail-Tabs: "signin" / "signup" / "reset"
+  let authEmailMode = "signin";
+  function setAuthEmailMode(mode){
+    authEmailMode = mode;
+    document.querySelectorAll("#authModeSwitch .auth-mode-link").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+    const pwField = document.getElementById("authPasswordField");
+    const pwConfirmField = document.getElementById("authPasswordConfirmField");
+    const submitBtn = document.getElementById("authEmailSubmitBtn");
+    const pwInput = document.getElementById("authPasswordInput");
+    const pwConfirmInput = document.getElementById("authPasswordConfirmInput");
+    if(mode === "signin"){
+      pwField.hidden = false; pwConfirmField.hidden = true;
+      pwInput.autocomplete = "current-password"; pwInput.required = true; pwConfirmInput.required = false;
+      submitBtn.textContent = "Anmelden";
+    }else if(mode === "signup"){
+      pwField.hidden = false; pwConfirmField.hidden = false;
+      pwInput.autocomplete = "new-password"; pwInput.required = true; pwConfirmInput.required = true;
+      submitBtn.textContent = "Konto erstellen";
+    }else{ // reset
+      pwField.hidden = true; pwConfirmField.hidden = true;
+      pwInput.required = false; pwConfirmInput.required = false;
+      submitBtn.textContent = "Link zum Zurücksetzen senden";
+    }
+    clearAuthFormError(); clearAuthEmailInfo();
+  }
+
+  async function initialCloudSync(){
+    await pullAll();
+    subscribeRealtime();
+    startFallbackPolling();
+  }
+
+  /* ---------------- Init ---------------- */
+  document.addEventListener("DOMContentLoaded", async () => {
+    state = loadState();
+    if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
+
+    let themeChoice = "system";
+    try{ themeChoice = localStorage.getItem("release-radar-theme") || "system"; }catch(e){}
+    applyTheme(themeChoice);
+    document.querySelectorAll(".theme-btn").forEach(b=>{
+      b.onclick = () => applyTheme(b.dataset.themeChoice);
+    });
+
+    document.getElementById("sideNav").classList.toggle("collapsed", !!state.sidebarCollapsed);
+    document.getElementById("sideToggle").onclick = () => setSidebarCollapsed(true);
+    document.getElementById("sideExpand").onclick = () => setSidebarCollapsed(false);
+    document.getElementById("brandMarkToggle").onclick = () => setSidebarCollapsed(!state.sidebarCollapsed);
+
+    renderAll();
+
+    if(SYNC_ENABLED){
+      const ok = await initSupabase();
+      updateSyncUI();
+      const signInBtn = document.getElementById("authSignInBtn");
+      const syncNowBtn = document.getElementById("syncNowBtn");
+      const signOutBtn = document.getElementById("syncSignOutBtn");
+      const errEl = document.getElementById("authError");
+
+      document.querySelectorAll("#authTabs .auth-tab").forEach(b => {
+        b.onclick = () => setAuthTab(b.dataset.tab);
+      });
+      document.querySelectorAll("#authModeSwitch .auth-mode-link").forEach(b => {
+        b.onclick = () => setAuthEmailMode(b.dataset.mode);
+      });
+
+      if(signInBtn) signInBtn.onclick = async () => {
+        signInBtn.disabled = true; signInBtn.textContent = "Weiterleitung …";
+        const success = ok && await signInSso();
+        if(!success){ signInBtn.disabled = false; signInBtn.textContent = "Mit Microsoft-Konto anmelden"; }
+        // bei Erfolg verlässt der Browser jetzt die Seite (OAuth-Redirect) — kein weiterer Code nötig
+      };
+
+      const emailForm = document.getElementById("authEmailForm");
+      if(emailForm) emailForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if(!ok) return;
+        const email = document.getElementById("authEmailInput").value.trim();
+        const pw = document.getElementById("authPasswordInput").value;
+        const pw2 = document.getElementById("authPasswordConfirmInput").value;
+        const submitBtn = document.getElementById("authEmailSubmitBtn");
+        submitBtn.disabled = true;
+        try{
+          if(authEmailMode === "signin") await signInWithEmail(email, pw);
+          else if(authEmailMode === "signup") await signUpWithEmail(email, pw, pw2);
+          else await sendPasswordReset(email);
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
+
+      const recoveryForm = document.getElementById("authRecoveryForm");
+      if(recoveryForm) recoveryForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const pw = document.getElementById("authRecoveryPw").value;
+        const pw2 = document.getElementById("authRecoveryPw2").value;
+        const submitBtn = document.getElementById("authRecoverySubmitBtn");
+        submitBtn.disabled = true;
+        try{ await updatePasswordFromRecovery(pw, pw2); }
+        finally{ submitBtn.disabled = false; }
+      });
+
+      if(syncNowBtn) syncNowBtn.onclick = () => { if(currentUser) pullAll(); };
+      if(signOutBtn) signOutBtn.onclick = requestSignOut;
+
+      // Team-Synchronisierung ist aktiv -> die App ist grundsätzlich nur nach Anmeldung nutzbar,
+      // es gibt bewusst keine "Ohne Anmeldung fortfahren"-Möglichkeit mehr.
+      if(ok && currentUser){
+        hideAuthGate();
+        await initialCloudSync();
+      }else{
+        showAuthGate();
+        if(!ok && signInBtn){
+          signInBtn.disabled = true;
+          if(errEl){ errEl.textContent = "Die Anmeldekomponente konnte nicht geladen werden (Netzwerk/CDN prüfen oder Seite neu laden)."; errEl.style.display = "block"; }
+        }
+      }
+    } else {
+      hideAuthGate();
+    }
+  });
+})();
+
+</script>
+
+<!--
+  Service-Worker-Registrierung für den PWA-/Offline-Modus. Greift nur, wenn sw.js unter
+  demselben Pfad erreichbar ist (siehe Hinweis zu manifest.webmanifest oben) — läuft die Seite
+  z. B. lokal als file:// oder ist sw.js (noch) nicht hochgeladen, bleibt dieser Block wirkungslos
+  und die App funktioniert unverändert wie zuvor.
+-->
+<script>
+  if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")){
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => { /* sw.js nicht vorhanden/erreichbar — App läuft normal weiter */ });
+    });
+  }
+</script>
