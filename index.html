@@ -643,9 +643,9 @@
 -->
 <script>
   window.RELEASE_RADAR_CONFIG = {
-    enabled: true,
-    supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/", // z. B. https://abcdefgh.supabase.co
-    supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiamRoamVwbGxxeWRhZGFndG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3NTI4NTgsImV4cCI6MjEwMzMyODg1OH0.-zPhRT2GMUmzWtlVzF-80deEwqlBqKO4nxRDBbbYYuw"
+    enabled: false,
+    supabaseUrl: "HIER-PROJEKT-URL-EINTRAGEN", // z. B. https://abcdefgh.supabase.co
+    supabaseAnonKey: "HIER-ANON-PUBLIC-KEY-EINTRAGEN"
   };
 </script>
 <!--
@@ -2109,6 +2109,7 @@
         const rel = {
           id: "r"+idx+"_"+Math.random().toString(36).slice(2,8),
           dbId: null,
+          isSeed: true, // Demo-/Startdaten — nie nach Supabase geschrieben, siehe stripUnsyncedSeedReleases()
           updatedAt: new Date(0).toISOString(),
           name: r.name,
           mode: r.mode === "Start" ? "Start" : "Publishing",
@@ -2133,6 +2134,7 @@
       if(typeof r.notes !== "string") r.notes = "";
       if(!r.status || !STATUS_META[r.status]) r.status = defaultStatusFor(r);
       if(typeof r.dbId === "undefined") r.dbId = null;
+      if(typeof r.isSeed !== "boolean") r.isSeed = false; // ältere lokale Stände enthalten das Feld noch nicht — nie rückwirkend als Seed behandeln
       if(typeof r.updatedAt !== "string") r.updatedAt = new Date(0).toISOString();
       r.tasks.forEach(t => { if(typeof t.done !== "boolean") t.done = false; });
     });
@@ -3385,7 +3387,24 @@
     clearAuthFormError(); clearAuthEmailInfo();
   }
 
+  // Entfernt die eingebauten Demo-/Startreleases (nie synchronisiert, dbId===null, isSeed===true)
+  // aus dem lokalen Stand, sobald die Team-Synchronisierung aktiv wird. Ohne das bleiben sie
+  // in jedem einzelnen Browser dauerhaft "hängen" (jede ausgelieferte HTML-Datei enthält sie
+  // erneut), da mergeRemote()/handleRealtimeEvent() nur Releases mit dbId gegen den Supabase-
+  // Stand abgleichen — lokale Releases ohne dbId werden dort bewusst nie angetastet, damit ein
+  // gerade neu angelegtes, noch nicht hochgeladenes Release nicht verloren geht.
+  function stripUnsyncedSeedReleases(){
+    const before = state.releases.length;
+    state.releases = state.releases.filter(r => !(r.isSeed && !r.dbId));
+    if(state.releases.length !== before){
+      if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+      renderAll();
+    }
+  }
+
   async function initialCloudSync(){
+    stripUnsyncedSeedReleases();
     await pullAll();
     subscribeRealtime();
     startFallbackPolling();
