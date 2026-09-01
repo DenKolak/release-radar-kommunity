@@ -3269,7 +3269,7 @@
     if(el){ el.textContent = ""; el.className = "auth-info"; }
   }
 
-  async function signInSso(){
+  async function signInSso(preOpenedPopup){
     clearAuthFormError();
     const baseUrl = window.location.href.split("#")[0].split("?")[0];
     if(!IS_EMBEDDED){
@@ -3291,6 +3291,16 @@
     // in Teams, über die von Teams empfohlene authentication.authenticate()-Methode, sonst über
     // ein einfaches window.open(). Die fertige Session wird danach automatisch (über den
     // browserinternen storage-Event-Abgleich von supabase-js) an dieses Fenster übernommen.
+    //
+    // WICHTIG (Browser-Popup-Blocker): Ein Popup wird von Browsern nur dann anstandslos zugelassen,
+    // wenn window.open() noch INNERHALB der synchronen Klick-Verarbeitung aufgerufen wird — nach
+    // einem "await" gilt der Klick nicht mehr als unmittelbarer Auslöser und der Browser blockiert
+    // das Popup meist stumm. Genau das ist vermutlich der Grund, warum die Anmeldung in der
+    // Teams-Webversion (echter Browser, strengere Regeln) nicht funktioniert hat, in der
+    // Teams-Desktop-App (eigene Chromium-Hülle, großzügiger) aber schon. Deshalb übergibt der
+    // Klick-Handler hier bereits ein VORAB (noch synchron) geöffnetes, leeres Popup-Fenster
+    // (preOpenedPopup), das erst jetzt — nachdem die Anmelde-URL von Supabase da ist — auf die
+    // eigentliche Adresse umgeleitet wird, statt window.open() erst hier neu aufzurufen.
     try{
       const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: "azure",
@@ -3301,6 +3311,9 @@
       if(!url) throw new Error("Keine Anmelde-URL erhalten");
       const teams = await loadTeamsSdkIfInTeams();
       if(teams && teams.authentication && teams.authentication.authenticate){
+        // Teams verwaltet sein eigenes Anmeldefenster — das vorab geöffnete leere Popup wird
+        // hierfür nicht gebraucht und wieder geschlossen, damit nicht zwei Fenster offen bleiben.
+        if(preOpenedPopup){ try{ preOpenedPopup.close(); }catch(e){} }
         await new Promise((resolve, reject) => {
           teams.authentication.authenticate({
             url, width: 480, height: 680,
@@ -3308,13 +3321,17 @@
             failureCallback: (reason) => reject(new Error(reason || "Anmeldung abgebrochen"))
           });
         });
+      }else if(preOpenedPopup && !preOpenedPopup.closed){
+        preOpenedPopup.location.href = url;
       }else{
+        // Fallback, falls aus irgendeinem Grund kein vorab geöffnetes Popup übergeben wurde
+        // (z. B. Aufruf außerhalb des unmittelbaren Klick-Kontexts).
         const popup = window.open(url, "release-radar-sso", "width=480,height=680");
         if(!popup) throw new Error("Popup wurde vom Browser blockiert — bitte Popups für diese Seite erlauben.");
       }
       return true;
     }catch(e){
-      showAuthFormError("Anmeldung fehlgeschlagen: " + (e && e.message ? e.message : e));
+      showAuthFormError("Anmeldung fehlgeschlagen: " + (e && e.message ? e.message : e) + " Bitte prüfen Sie, ob Ihr Browser Popups für diese Seite erlaubt.");
       return false;
     }
   }
@@ -3632,6 +3649,10 @@
 
   /* ---------------- Init ---------------- */
   document.addEventListener("DOMContentLoaded", async () => {
+    // Frühzeitig (nicht erst beim Anmelde-Klick) prüfen, ob wir in Microsoft Teams eingebettet
+    // sind — das Ergebnis wird gecacht, damit beim tatsächlichen Anmelde-Klick keine zusätzliche
+    // Wartezeit mehr entsteht (wichtig für Popup-Blocker, siehe signInSso()).
+    if(IS_EMBEDDED) loadTeamsSdkIfInTeams();
     state = loadState();
     if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
 
@@ -3668,7 +3689,15 @@
       if(signInBtn) signInBtn.onclick = async () => {
         signInBtn.disabled = true;
         signInBtn.textContent = IS_EMBEDDED ? "Anmeldefenster wird geöffnet …" : "Weiterleitung …";
-        const success = ok && await signInSso();
+        // Bei eingebetteter Ausführung (Teams-Tab/iFrame) das Popup-Fenster JETZT — noch synchron
+        // als direkte Folge dieses Klicks — leer öffnen, statt erst in signInSso() nach mehreren
+        // await-Schritten. Browser (insbesondere in der Teams-Webversion) blockieren window.open()
+        // sonst häufig stumm, weil der Aufruf dann nicht mehr als unmittelbare Nutzerreaktion zählt.
+        let preOpenedPopup = null;
+        if(IS_EMBEDDED){
+          try{ preOpenedPopup = window.open("", "release-radar-sso", "width=480,height=680"); }catch(e){}
+        }
+        const success = ok && await signInSso(preOpenedPopup);
         // Im eingebetteten Fall (Popup) verlässt die Seite NICHT die aktuelle Ansicht — Button
         // also in jedem Fall (Erfolg wie Misserfolg) wieder zurücksetzen. Beim normalen Redirect
         // verlässt der Browser bei Erfolg ohnehin die Seite, daher schadet das Zurücksetzen dort nicht.
