@@ -184,7 +184,15 @@
   .nav-item.active{ background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
   .nav-dot{ width:8px; height:8px; border-radius:50%; flex:none; background:var(--ink-faint); }
   .nav-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .side.collapsed .nav-name, .side.collapsed .nav-del{ display:none; }
+  .side.collapsed .nav-name, .side.collapsed .nav-del, .side.collapsed .nav-move{ display:none; }
+  .nav-move{
+    width:16px; height:16px; border:none; background:transparent; color:var(--ink-faint);
+    cursor:pointer; border-radius:4px; display:flex; align-items:center; justify-content:center;
+    flex:none; font-size:8px; padding:0;
+  }
+  .nav-move:hover{ background:var(--bg-sunken); color:var(--ink); }
+  .nav-move:disabled{ opacity:.25; cursor:default; }
+  .nav-move:disabled:hover{ background:transparent; color:var(--ink-faint); }
   .nav-del{
     opacity:0; width:18px; height:18px; border:none; background:transparent; color:var(--ink-faint);
     cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center; flex:none;
@@ -286,6 +294,7 @@
   .gantt-fixed{
     width:280px; flex:none; border-right:1px solid var(--border); background:var(--bg-elevated);
   }
+  .gantt-fixed-lg{ width:320px; } /* Release-Ablaufplan: etwas breiter für längere Schrittnamen */
   .gantt-scroll{ flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; }
   .gantt-row{
     display:flex; align-items:center; height:34px; border-bottom:1px solid var(--border);
@@ -446,6 +455,7 @@
     .side.collapsed .brand-labels{ display:block !important; }
     .side.collapsed .nav-name{ display:block !important; }
     .side.collapsed .nav-del{ display:flex !important; }
+    .side.collapsed .nav-move{ display:flex !important; }
     .side.collapsed .nav-label{ display:block !important; }
     .side.collapsed .nav-add .add-label{ display:inline !important; }
     .side.collapsed .sync-bar{ display:flex !important; }
@@ -467,7 +477,7 @@
     .card-value{ font-size:20px; }
     .panel-head{ padding:12px 14px; }
     .panel-body{ padding:13px 14px; }
-    .gantt-fixed{ width:190px; }
+    .gantt-fixed, .gantt-fixed-lg{ width:190px; }
     .gantt-fixed .gantt-row{ gap:5px; padding:0 8px; }
     .gantt-fixed .pill{ padding:1px 5px; font-size:9.5px; }
     table.tasks{ min-width:760px; } /* erzwingt horizontales Scrollen statt gequetschter Spalten */
@@ -478,7 +488,7 @@
     .topbar-actions{ flex-wrap:wrap; width:100%; }
     .cards{ grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); }
     .auth-card{ padding:22px 18px; }
-    .gantt-fixed{ width:150px; }
+    .gantt-fixed, .gantt-fixed-lg{ width:150px; }
     .gantt-name{ font-size:11.5px; }
   }
 
@@ -2249,7 +2259,7 @@
     label2.textContent = "Releases";
     nav.appendChild(label2);
 
-    state.releases.forEach(r => nav.appendChild(navItem(r.id, r.name, r.status)));
+    state.releases.forEach((r, i) => nav.appendChild(navItem(r.id, r.name, r.status, i, state.releases.length)));
 
     const addBtn = document.createElement("button");
     addBtn.className = "nav-add";
@@ -2257,19 +2267,29 @@
     addBtn.onclick = addRelease;
     nav.appendChild(addBtn);
   }
-  function navItem(id, name, status){
+  function navItem(id, name, status, index, count){
     const el = document.createElement("div");
     el.className = "nav-item" + (state.activeId === id ? " active" : "");
     el.title = name;
+    const isFirst = index === 0, isLast = index === count-1;
     el.innerHTML = `<span class="nav-dot"></span><span class="nav-name"></span>` +
-      (id!=="overview" ? `<button class="nav-del" title="Release löschen">&times;</button>` : "");
+      (id!=="overview" ? `
+        <button class="nav-move" data-dir="-1" title="Nach oben verschieben" ${isFirst?"disabled":""}>&#9650;</button>
+        <button class="nav-move" data-dir="1" title="Nach unten verschieben" ${isLast?"disabled":""}>&#9660;</button>
+        <button class="nav-del" title="Release löschen">&times;</button>` : "");
     el.querySelector(".nav-name").textContent = name;
     const dot = el.querySelector(".nav-dot");
     dot.style.background = id === "overview" ? "var(--accent)" : statusMeta(status).dot;
     el.onclick = (e) => {
-      if(e.target.closest(".nav-del")) return;
+      if(e.target.closest(".nav-del") || e.target.closest(".nav-move")) return;
       state.activeId = id; saveState(); renderAll();
     };
+    el.querySelectorAll(".nav-move").forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        moveRelease(id, parseInt(btn.dataset.dir, 10));
+      };
+    });
     const del = el.querySelector(".nav-del");
     if(del){
       // Zwei-Klick-Bestätigung statt window.confirm (in Artifact-Sandbox nicht verlässlich verfügbar)
@@ -2299,6 +2319,22 @@
     }
     return el;
   }
+  // Verschiebt ein Release in der linken Navigation eine Position nach oben (-1) oder unten (+1).
+  // Die Reihenfolge ist bewusst eine reine Anzeige-Einstellung dieses Browsers/Geräts — sie wird
+  // nicht als eigenes Feld in der Supabase-Tabelle "releases" mitsynchronisiert (dafür müsste die
+  // Tabelle um eine Sortierspalte erweitert werden). Jede Person kann sich die Liste also
+  // unabhängig nach eigenem Bedarf anordnen, ohne die Ansicht anderer zu beeinflussen.
+  function moveRelease(id, dir){
+    const idx = state.releases.findIndex(r => r.id === id);
+    const swapWith = idx + dir;
+    if(idx === -1 || swapWith < 0 || swapWith >= state.releases.length) return;
+    const tmp = state.releases[idx];
+    state.releases[idx] = state.releases[swapWith];
+    state.releases[swapWith] = tmp;
+    saveState();
+    renderAll();
+  }
+
   function addRelease(){
     const n = state.releases.length + 1;
     const anchor = new Date(); anchor.setMonth(anchor.getMonth()+2);
@@ -2368,6 +2404,18 @@
       container.appendChild(line);
     }
   }
+  // Spiegelt die Breite von .gantt-fixed/.gantt-fixed-lg aus den CSS-Breakpoints (siehe
+  // <style>-Block) — wird gebraucht, um die "volle Breite ohne Scrollen"-Berechnung der
+  // Übersichts-Zeitachse an die tatsächlich sichtbare Spaltenbreite anzupassen (sonst wird
+  // z. B. auf dem Handy ein Monat am rechten Rand abgeschnitten, weil mit der Desktop-Breite
+  // von 280px statt der tatsächlichen, schmaleren mobilen Spalte gerechnet würde).
+  function ganttFixedWidth(){
+    const w = window.innerWidth;
+    if(w <= 480) return 150;
+    if(w <= 860) return 190;
+    return 280;
+  }
+
   function buildMonthHeader(container, fromDate, totalDays, dayWidth){
     container.innerHTML = "";
     container.style.position = "relative";
@@ -2445,7 +2493,7 @@
     const rangeEnd = addDays(new Date(Math.max(maxEnd, today)), 8);
     const totalDays = Math.max(1, Math.round((rangeEnd - rangeStart)/MS_DAY));
     // Übersicht zeigt den kompletten Zeitraum ohne Scrollen: Tagesbreite an verfügbare Breite anpassen
-    const availableWidth = Math.max(360, document.querySelector(".main").clientWidth - 280 - 56 - 20);
+    const availableWidth = Math.max(150, document.querySelector(".main").clientWidth - ganttFixedWidth() - 56 - 20);
     const dayWidth = Math.max(2.2, Math.min(22, availableWidth / totalDays));
 
     const cardsHtml = `
@@ -2650,7 +2698,7 @@
           </div>
         </div>
         <div class="gantt-wrap">
-          <div class="gantt-fixed" id="relFixed" style="width:320px;"></div>
+          <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
           <div class="gantt-scroll" id="relScroll">
             <div class="gantt-month-row" id="relMonths" style="height:40px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
             <div id="relRowsHost"></div>
