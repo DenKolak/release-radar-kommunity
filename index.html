@@ -3121,6 +3121,41 @@
   const dirtyKeys = new Set();      // dbId (oder lokale id, falls noch nicht angelegt) mit ausstehendem Push
   const pushTimers = new Map();     // release.id -> setTimeout-Handle
 
+  // Läuft die App eingebettet (z. B. als Tab in Microsoft Teams oder als iFrame in Confluence)?
+  // Wichtig für die Anmeldung: Microsoft verweigert grundsätzlich, die Anmeldeseite in einem
+  // iFrame darzustellen (leere/weiße bzw. schwarze Seite statt Anmeldemaske) — eingebettet
+  // läuft die Microsoft-Anmeldung deshalb stattdessen über ein eigenes Popup-Fenster.
+  const IS_EMBEDDED = (function(){ try{ return window.self !== window.top; }catch(e){ return true; } })();
+
+  // Lädt bei Bedarf das offizielle Microsoft-Teams-JavaScript-SDK nach und prüft, ob die App
+  // tatsächlich innerhalb von Microsoft Teams läuft (nicht jedes iFrame ist Teams, z. B.
+  // Confluence). Liefert bei Erfolg das SDK-Objekt zurück, sonst null — mit kurzem Timeout,
+  // damit die Anmeldung außerhalb von Teams nicht unnötig lange wartet. Wird gebraucht, um das
+  // Anmelde-Popup über den von Teams empfohlenen Weg zu öffnen (in der "neuen" wie "klassischen"
+  // Teams-Desktop-App zuverlässiger als ein einfaches window.open).
+  let teamsSdkPromise = null;
+  function loadTeamsSdkIfInTeams(){
+    if(!IS_EMBEDDED) return Promise.resolve(null);
+    if(teamsSdkPromise) return teamsSdkPromise;
+    teamsSdkPromise = new Promise((resolve) => {
+      let done = false;
+      const finish = (val) => { if(done) return; done = true; resolve(val); };
+      const timer = setTimeout(() => finish(null), 1500);
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/@microsoft/teams-js@2/dist/MicrosoftTeams.min.js";
+      script.onload = () => {
+        try{
+          window.microsoftTeams.app.initialize()
+            .then(() => { clearTimeout(timer); finish(window.microsoftTeams); })
+            .catch(() => { clearTimeout(timer); finish(null); });
+        }catch(e){ clearTimeout(timer); finish(null); }
+      };
+      script.onerror = () => { clearTimeout(timer); finish(null); };
+      document.head.appendChild(script);
+    });
+    return teamsSdkPromise;
+  }
+
   function userDisplayName(){
     if(!currentUser) return "";
     return (currentUser.user_metadata && currentUser.user_metadata.full_name) || currentUser.email || "Angemeldet";
@@ -3189,6 +3224,21 @@
       currentUser = session ? session.user : null;
       updateSyncUI();
       if(currentUser && !hadUser){
+        // Läuft dieses Fenster selbst als Popup (von signInSso() für eingebettete Kontexte
+        // geöffnet), dann NICHT die App hier im Popup aufbauen — stattdessen das Popup
+        // schließen bzw. Teams informieren. Das eigentliche Teams-Tab-Fenster bekommt die
+        // neue Session automatisch über supabase-js' eingebauten storage-Event-Abgleich
+        // (beide Fenster benutzen denselben localStorage) und reagiert selbst mit diesem
+        // Zweig auf sein eigenes onAuthStateChange.
+        if(window.opener){
+          loadTeamsSdkIfInTeams().then((teams) => {
+            if(teams && teams.authentication && teams.authentication.notifySuccess){
+              try{ teams.authentication.notifySuccess("ok"); return; }catch(e){}
+            }
+            try{ window.close(); }catch(e){}
+          });
+          return;
+        }
         hideAuthGate();
         initialCloudSync();
       }else if(!currentUser && hadUser){
@@ -3221,13 +3271,48 @@
 
   async function signInSso(){
     clearAuthFormError();
+    const baseUrl = window.location.href.split("#")[0].split("?")[0];
+    if(!IS_EMBEDDED){
+      try{
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: "azure",
+          options:{ scopes:"email openid profile", redirectTo: baseUrl }
+        });
+        if(error) throw error;
+        return true; // Browser verlässt jetzt die Seite (Redirect zur Microsoft-Anmeldung)
+      }catch(e){
+        showAuthFormError("Anmeldung fehlgeschlagen: " + (e && e.message ? e.message : e));
+        return false;
+      }
+    }
+    // Eingebettet (z. B. Microsoft-Teams-Tab oder iFrame): Microsoft verweigert, die Anmelde-
+    // seite in einem iFrame darzustellen (schwarze/leere Seite statt Anmeldemaske). Daher hier
+    // stattdessen ein separates Popup-Fenster für die Anmeldung öffnen — läuft die App tatsächlich
+    // in Teams, über die von Teams empfohlene authentication.authenticate()-Methode, sonst über
+    // ein einfaches window.open(). Die fertige Session wird danach automatisch (über den
+    // browserinternen storage-Event-Abgleich von supabase-js) an dieses Fenster übernommen.
     try{
-      const { error } = await supabaseClient.auth.signInWithOAuth({
+      const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: "azure",
-        options:{ scopes:"email openid profile", redirectTo: window.location.href.split("#")[0].split("?")[0] }
+        options:{ scopes:"email openid profile", redirectTo: baseUrl, skipBrowserRedirect: true }
       });
       if(error) throw error;
-      return true; // Browser verlässt jetzt die Seite (Redirect zur Microsoft-Anmeldung)
+      const url = data && data.url;
+      if(!url) throw new Error("Keine Anmelde-URL erhalten");
+      const teams = await loadTeamsSdkIfInTeams();
+      if(teams && teams.authentication && teams.authentication.authenticate){
+        await new Promise((resolve, reject) => {
+          teams.authentication.authenticate({
+            url, width: 480, height: 680,
+            successCallback: () => resolve(),
+            failureCallback: (reason) => reject(new Error(reason || "Anmeldung abgebrochen"))
+          });
+        });
+      }else{
+        const popup = window.open(url, "release-radar-sso", "width=480,height=680");
+        if(!popup) throw new Error("Popup wurde vom Browser blockiert — bitte Popups für diese Seite erlauben.");
+      }
+      return true;
     }catch(e){
       showAuthFormError("Anmeldung fehlgeschlagen: " + (e && e.message ? e.message : e));
       return false;
@@ -3581,10 +3666,13 @@
       });
 
       if(signInBtn) signInBtn.onclick = async () => {
-        signInBtn.disabled = true; signInBtn.textContent = "Weiterleitung …";
+        signInBtn.disabled = true;
+        signInBtn.textContent = IS_EMBEDDED ? "Anmeldefenster wird geöffnet …" : "Weiterleitung …";
         const success = ok && await signInSso();
-        if(!success){ signInBtn.disabled = false; signInBtn.textContent = "Mit Microsoft-Konto anmelden"; }
-        // bei Erfolg verlässt der Browser jetzt die Seite (OAuth-Redirect) — kein weiterer Code nötig
+        // Im eingebetteten Fall (Popup) verlässt die Seite NICHT die aktuelle Ansicht — Button
+        // also in jedem Fall (Erfolg wie Misserfolg) wieder zurücksetzen. Beim normalen Redirect
+        // verlässt der Browser bei Erfolg ohnehin die Seite, daher schadet das Zurücksetzen dort nicht.
+        if(!success || IS_EMBEDDED){ signInBtn.disabled = false; signInBtn.textContent = "Mit Microsoft-Konto anmelden"; }
       };
 
       const emailForm = document.getElementById("authEmailForm");
