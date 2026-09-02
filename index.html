@@ -184,15 +184,11 @@
   .nav-item.active{ background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
   .nav-dot{ width:8px; height:8px; border-radius:50%; flex:none; background:var(--ink-faint); }
   .nav-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .side.collapsed .nav-name, .side.collapsed .nav-del, .side.collapsed .nav-move{ display:none; }
-  .nav-move{
-    width:16px; height:16px; border:none; background:transparent; color:var(--ink-faint);
-    cursor:pointer; border-radius:4px; display:flex; align-items:center; justify-content:center;
-    flex:none; font-size:8px; padding:0;
-  }
-  .nav-move:hover{ background:var(--bg-sunken); color:var(--ink); }
-  .nav-move:disabled{ opacity:.25; cursor:default; }
-  .nav-move:disabled:hover{ background:transparent; color:var(--ink-faint); }
+  .side.collapsed .nav-name, .side.collapsed .nav-del{ display:none; }
+  .nav-item[data-release-id]{ cursor:grab; }
+  .nav-item[data-release-id].dragging{ opacity:.4; cursor:grabbing; }
+  .nav-item[data-release-id].drag-over-top{ box-shadow:inset 0 2px 0 var(--accent); }
+  .nav-item[data-release-id].drag-over-bottom{ box-shadow:inset 0 -2px 0 var(--accent); }
   .nav-del{
     opacity:0; width:18px; height:18px; border:none; background:transparent; color:var(--ink-faint);
     cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center; flex:none;
@@ -217,6 +213,15 @@
     background:var(--bg); color:var(--ink-soft); cursor:pointer; font-size:12px; font-weight:600;
   }
   .theme-btn.active{ border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft); }
+
+  .holiday-region-row{ padding:10px 12px 0; border-top:1px solid var(--border); }
+  .side.collapsed .holiday-region-row{ display:none; }
+  .holiday-region-row label{ display:block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); margin-bottom:5px; }
+  .holiday-region-select{
+    width:100%; padding:6px 8px; border-radius:7px; border:1px solid var(--border-strong);
+    background:var(--bg); color:var(--ink); font-size:12.5px; font-family:"DM Sans";
+  }
+  .holiday-region-select:focus{ border-color:var(--accent); outline:none; }
 
   .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
   .topbar{
@@ -295,12 +300,23 @@
     width:280px; flex:none; border-right:1px solid var(--border); background:var(--bg-elevated);
   }
   .gantt-fixed-lg{ width:320px; } /* Release-Ablaufplan: etwas breiter für längere Schrittnamen */
-  .gantt-scroll{ flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; }
+  .gantt-scroll{ flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; position:relative; }
+  .gantt-hoverline{
+    position:absolute; top:0; bottom:0; width:1px; background:var(--accent);
+    opacity:.6; pointer-events:none; z-index:6; display:none;
+  }
   .gantt-row{
     display:flex; align-items:center; height:34px; border-bottom:1px solid var(--border);
     padding:0 14px; gap:8px; font-size:12.5px;
   }
   .gantt-fixed .gantt-row{ padding:0 12px; }
+  .gantt-row[data-task-id]{ cursor:pointer; }
+  .gantt-row[data-task-id]:hover{ background:var(--bg-sunken); }
+  .gantt-row.row-flash, tr.row-flash{ animation:rowFlash 1.4s ease; }
+  @keyframes rowFlash{
+    0%{ background:var(--accent-soft); }
+    100%{ background:transparent; }
+  }
   .gantt-row.head{ height:40px; background:var(--bg-sunken); font-weight:700; font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; position:sticky; top:0; z-index:3; }
   .gantt-row.today-row{ background: color-mix(in srgb, var(--today) 6%, transparent); }
   .gantt-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
@@ -335,7 +351,7 @@
   }
 
   /* ---------- table ---------- */
-  table.tasks{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+  table.tasks{ width:100%; min-width:980px; border-collapse:collapse; font-size:13px; table-layout:fixed; }
   table.tasks th{
     text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
     color:var(--ink-faint); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--border);
@@ -384,6 +400,37 @@
   }
   .chk{ width:16px; height:16px; accent-color:var(--success); cursor:pointer; }
   .date-cell{ font-family:"DM Sans",monospace; font-size:12px; color:var(--ink-soft); white-space:nowrap; }
+
+  .task-move-cell{ display:flex; flex-direction:column; gap:1px; }
+  .task-move-btn{
+    width:18px; height:14px; border:none; background:transparent; color:var(--ink-faint);
+    cursor:pointer; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:8px; padding:0;
+  }
+  .task-move-btn:hover{ background:var(--bg-sunken); color:var(--ink); }
+  .task-move-btn:disabled{ opacity:.25; cursor:default; }
+  .task-del-btn{
+    width:22px; height:22px; border:none; background:transparent; color:var(--ink-faint);
+    cursor:pointer; border-radius:6px; font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center;
+  }
+  .task-del-btn:hover{ background:var(--critical-soft); color:var(--critical); }
+  .task-del-btn.confirm{ background:var(--critical); color:#fff; font-size:10.5px; font-weight:700; width:auto; padding:0 8px; }
+  .label-input{
+    width:100%; min-width:90px; padding:4px 7px; border-radius:6px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); color:var(--ink); font-size:12px;
+  }
+  .label-input:focus{ border-color:var(--accent); outline:none; }
+  .label-input::placeholder{ color:var(--ink-faint); }
+  .task-add-row{ display:flex; justify-content:flex-start; padding:10px 18px; border-bottom:1px solid var(--border); }
+
+  /* ---------- Ablaufplan + Aufgabentabelle nebeneinander (ab ausreichender Breite) ---------- */
+  .release-split{ display:flex; flex-direction:column; gap:16px; }
+  @media (min-width: 1180px){
+    .release-split{ flex-direction:row; align-items:flex-start; }
+    .release-split > .panel{ flex:1 1 50%; min-width:0; margin-bottom:0 !important; }
+    .release-split .gantt-wrap{ max-height:min(640px, 72vh); }
+    .release-split .task-table-scroll{ max-height:min(640px, 72vh); }
+  }
+  .task-table-scroll{ overflow:auto; max-height:min(480px, 60vh); }
 
   .legend{ display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--ink-soft); align-items:center; }
   .legend-swatch{ width:12px; height:12px; border-radius:3px; display:inline-block; margin-right:5px; vertical-align:-2px; }
@@ -455,10 +502,10 @@
     .side.collapsed .brand-labels{ display:block !important; }
     .side.collapsed .nav-name{ display:block !important; }
     .side.collapsed .nav-del{ display:flex !important; }
-    .side.collapsed .nav-move{ display:flex !important; }
     .side.collapsed .nav-label{ display:block !important; }
     .side.collapsed .nav-add .add-label{ display:inline !important; }
     .side.collapsed .sync-bar{ display:flex !important; }
+    .side.collapsed .holiday-region-row{ display:block !important; }
     .side.collapsed .side-foot{ display:flex !important; }
     .side.collapsed .brand{ justify-content:flex-start; padding:20px 14px 14px; }
     .side.collapsed .nav-item{ justify-content:flex-start; padding:8px 10px; }
@@ -480,7 +527,6 @@
     .gantt-fixed, .gantt-fixed-lg{ width:190px; }
     .gantt-fixed .gantt-row{ gap:5px; padding:0 8px; }
     .gantt-fixed .pill{ padding:1px 5px; font-size:9.5px; }
-    table.tasks{ min-width:760px; } /* erzwingt horizontales Scrollen statt gequetschter Spalten */
   }
 
   @media (max-width: 480px){
@@ -607,6 +653,10 @@
         <button class="btn btn-ghost btn-sm" id="syncSignOutBtn" title="Abmelden">&#9099;</button>
       </div>
     </div>
+    <div class="holiday-region-row">
+      <label for="holidayRegionSelect">Feiertage (Bundesland)</label>
+      <select class="holiday-region-select" id="holidayRegionSelect"></select>
+    </div>
     <div class="side-foot">
       <button class="theme-btn" data-theme-choice="light">Hell</button>
       <button class="theme-btn" data-theme-choice="system">Auto</button>
@@ -715,7 +765,7 @@
 <script>
   window.RELEASE_RADAR_CONFIG = {
     enabled: true,
-    supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/", // z. B. https://abcdefgh.supabase.co
+    supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/",
     supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiamRoamVwbGxxeWRhZGFndG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3NTI4NTgsImV4cCI6MjEwMzMyODg1OH0.-zPhRT2GMUmzWtlVzF-80deEwqlBqKO4nxRDBbbYYuw"
   };
 </script>
@@ -2008,6 +2058,77 @@
   function holidayName(date){
     return holidaysForYear(date.getFullYear()).get(dkey(date)) || null;
   }
+
+  /* ---------------- Feiertage: Bundesland-Auswahl + automatischer Import über eine öffentliche API ----------------
+     Die oben hartkodierte BW-Berechnung dient nur noch als sofort verfügbarer Fallback (u. a.
+     offline), bis die echten Feiertage des ausgewählten Bundeslands über die freie, ohne
+     Registrierung nutzbare Nager.Date-API (https://date.nager.at) geladen wurden — für das
+     laufende und das kommende Jahr. Einmal geladen, überschreiben sie den holidayCache-Eintrag
+     für das jeweilige Jahr; danach wird neu gerendert, damit Zeitachse/Terminberechnung sofort
+     die korrekten, bundeslandspezifischen Feiertage berücksichtigen. */
+  const GERMAN_STATES = [
+    {code:"DE-BW", name:"Baden-Württemberg"},
+    {code:"DE-BY", name:"Bayern"},
+    {code:"DE-BE", name:"Berlin"},
+    {code:"DE-BB", name:"Brandenburg"},
+    {code:"DE-HB", name:"Bremen"},
+    {code:"DE-HH", name:"Hamburg"},
+    {code:"DE-HE", name:"Hessen"},
+    {code:"DE-MV", name:"Mecklenburg-Vorpommern"},
+    {code:"DE-NI", name:"Niedersachsen"},
+    {code:"DE-NW", name:"Nordrhein-Westfalen"},
+    {code:"DE-RP", name:"Rheinland-Pfalz"},
+    {code:"DE-SL", name:"Saarland"},
+    {code:"DE-SN", name:"Sachsen"},
+    {code:"DE-ST", name:"Sachsen-Anhalt"},
+    {code:"DE-SH", name:"Schleswig-Holstein"},
+    {code:"DE-TH", name:"Thüringen"},
+  ];
+  const HOLIDAY_REGION_KEY = "release-radar-holiday-region";
+  function holidayRegionName(code){
+    const s = GERMAN_STATES.find(s => s.code === code);
+    return s ? s.name : "Baden-Württemberg";
+  }
+  let holidayRegion = "DE-BW";
+  try{ holidayRegion = localStorage.getItem(HOLIDAY_REGION_KEY) || "DE-BW"; }catch(e){}
+
+  const holidayYearsAttempted = new Set(); // "jahr|region" — bereits versucht (egal ob erfolgreich), verhindert Endlosschleife bei Netzwerkfehlern
+  async function loadHolidaysFromApi(year){
+    try{
+      const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/DE`);
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const data = await res.json();
+      const m = new Map();
+      data.forEach(h => {
+        if(h.counties && !h.counties.includes(holidayRegion)) return; // regionaler Feiertag eines anderen Bundeslands
+        m.set(h.date, h.localName || h.name);
+      });
+      holidayCache.set(year, m); // überschreibt den BW-Fallback mit den echten, bundeslandspezifischen Daten
+      return true;
+    }catch(e){
+      return false; // Netzwerkfehler/offline — lokaler BW-Fallback bleibt aktiv
+    }
+  }
+  // Sorgt dafür, dass für die übergebenen Jahre (typischerweise: die in der aktuell sichtbaren
+  // Zeitachse vorkommenden Jahre) einmal versucht wird, die echten Feiertage nachzuladen; rendert
+  // bei Erfolg die App neu, damit die Änderung sofort sichtbar wird.
+  function ensureHolidayYearsLoaded(years){
+    const toFetch = [...new Set(years)].filter(y => !holidayYearsAttempted.has(y+"|"+holidayRegion));
+    if(toFetch.length === 0) return;
+    toFetch.forEach(y => holidayYearsAttempted.add(y+"|"+holidayRegion));
+    Promise.all(toFetch.map(loadHolidaysFromApi)).then(results => {
+      if(results.some(Boolean)) renderAll();
+    });
+  }
+  function setHolidayRegion(code){
+    if(code === holidayRegion) return;
+    holidayRegion = code;
+    try{ localStorage.setItem(HOLIDAY_REGION_KEY, code); }catch(e){}
+    holidayCache.clear();          // BW-Fallback wird sofort neu berechnet, bis echte Daten für die neue Region da sind
+    holidayYearsAttempted.clear(); // erzwingt erneutes Laden für alle bereits gezeigten Jahre
+    renderAll();
+  }
+
   function isWeekend(date){ const wd = date.getDay(); return wd===0 || wd===6; }
   function isWorkday(date){ return !isWeekend(date) && !holidayName(date); }
 
@@ -2073,18 +2194,28 @@
     return `<span class="pill ${m.pillClass}"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>${m.label}</span>`;
   }
 
-  /* ---------------- Meilensteine ---------------- */
-  // Exakter Abgleich (nicht "includes"), damit z.B. "Build Version 1 nach Feature Freeze" nicht mitzählt
-  const MILESTONE_NAMES = ["feature freeze", "code freeze", "deployment auf produktion"];
-  function isMilestoneTask(name){
-    const n = (name||"").trim().toLowerCase();
-    return MILESTONE_NAMES.includes(n);
+  /* ---------------- Meilensteine / Labels ----------------
+     Jede Aufgabe kann ein freies Label tragen (z. B. "Meilenstein", "Feature-Freeze") — gepflegt
+     in der "Label"-Spalte der Aufgabentabelle. Labels werden oben in der Zeitachse als Flaggen
+     angezeigt, synchron mit dem, was in der Tabelle steht.
+     Rückwärtskompatibilität: ältere Releases kannten Meilensteine nicht als eigenes Feld, sondern
+     erkannten sie rein am (exakten) Aufgabennamen — diese Namen werden beim Laden einmalig in ein
+     echtes Label überführt (siehe migrateState()), damit bestehende Releases ihre Meilensteine
+     nicht verlieren. */
+  const LEGACY_MILESTONE_NAME_LABELS = {
+    "feature freeze": "Feature-Freeze",
+    "code freeze": "Code-Freeze",
+    "deployment auf produktion": "Meilenstein",
+  };
+  function legacyAutoLabel(name){
+    return LEGACY_MILESTONE_NAME_LABELS[(name||"").trim().toLowerCase()] || "";
   }
-  function getMilestones(release, sched){
+  function getLabeledTasks(release, sched){
     const out = [];
     release.tasks.forEach((t,i) => {
-      if(isMilestoneTask(t.name)){
-        out.push({ label: t.name, date: sched.starts[i] });
+      const label = (t.label||"").trim();
+      if(label){
+        out.push({ label, date: sched.starts[i], id: t.id });
       }
     });
     return out;
@@ -2152,7 +2283,8 @@
   function makeTemplateTasks(){
     return DEFAULT_TEMPLATE.map((row,i)=>({
       id: "t"+i+"_"+Math.random().toString(36).slice(2,8),
-      name: row[0], resp: row[1], duration: row[2], lag: row[3], done:false
+      name: row[0], resp: row[1], duration: row[2], lag: row[3], done:false,
+      label: legacyAutoLabel(row[0])
     }));
   }
 
@@ -2188,7 +2320,8 @@
           notes: "",
           tasks: r.tasks.map((t,i)=>({
             id:"t"+idx+"_"+i+"_"+Math.random().toString(36).slice(2,8),
-            name:t.name, resp:t.resp, duration:t.duration, lag:t.lag, done:!!t.done
+            name:t.name, resp:t.resp, duration:t.duration, lag:t.lag, done:!!t.done,
+            label: legacyAutoLabel(t.name)
           }))
         };
         rel.status = defaultStatusFor(rel);
@@ -2207,7 +2340,10 @@
       if(typeof r.dbId === "undefined") r.dbId = null;
       if(typeof r.isSeed !== "boolean") r.isSeed = false; // ältere lokale Stände enthalten das Feld noch nicht — nie rückwirkend als Seed behandeln
       if(typeof r.updatedAt !== "string") r.updatedAt = new Date(0).toISOString();
-      r.tasks.forEach(t => { if(typeof t.done !== "boolean") t.done = false; });
+      r.tasks.forEach(t => {
+        if(typeof t.done !== "boolean") t.done = false;
+        if(typeof t.label !== "string") t.label = legacyAutoLabel(t.name); // alter, namensbasierter Meilenstein -> echtes Label
+      });
     });
     return s;
   }
@@ -2259,37 +2395,79 @@
     label2.textContent = "Releases";
     nav.appendChild(label2);
 
-    state.releases.forEach((r, i) => nav.appendChild(navItem(r.id, r.name, r.status, i, state.releases.length)));
+    state.releases.forEach((r) => nav.appendChild(navItem(r.id, r.name, r.status)));
 
     const addBtn = document.createElement("button");
     addBtn.className = "nav-add";
     addBtn.innerHTML = `<span>&#43;</span><span class="add-label">Neues Release</span>`;
     addBtn.onclick = addRelease;
     nav.appendChild(addBtn);
+
+    initReleaseDragReorder(nav);
   }
-  function navItem(id, name, status, index, count){
+
+  // Erlaubt, die Release-Kacheln in der Navigation per Drag&Drop neu anzuordnen (ersetzt die
+  // frühere Auf/Ab-Pfeil-Lösung). Reihenfolge ist bewusst eine reine Anzeige-Einstellung dieses
+  // Browsers/Geräts — sie wird nicht als eigenes Feld in der Supabase-Tabelle "releases"
+  // mitsynchronisiert (dafür müsste die Tabelle um eine Sortierspalte erweitert werden). Jede
+  // Person kann sich die Liste also unabhängig nach eigenem Bedarf anordnen, ohne die Ansicht
+  // anderer zu beeinflussen.
+  let dragReleaseId = null;
+  function initReleaseDragReorder(nav){
+    nav.querySelectorAll(".nav-item[data-release-id]").forEach(item => {
+      item.draggable = true;
+      item.addEventListener("dragstart", (e) => {
+        dragReleaseId = item.dataset.releaseId;
+        item.classList.add("dragging");
+        try{ e.dataTransfer.setData("text/plain", dragReleaseId); e.dataTransfer.effectAllowed = "move"; }catch(err){}
+      });
+      item.addEventListener("dragend", () => {
+        item.classList.remove("dragging");
+        nav.querySelectorAll(".nav-item.drag-over-top, .nav-item.drag-over-bottom").forEach(el => el.classList.remove("drag-over-top","drag-over-bottom"));
+        dragReleaseId = null;
+      });
+      item.addEventListener("dragover", (e) => {
+        if(!dragReleaseId || dragReleaseId === item.dataset.releaseId) return;
+        e.preventDefault();
+        const rect = item.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height/2;
+        item.classList.toggle("drag-over-top", before);
+        item.classList.toggle("drag-over-bottom", !before);
+      });
+      item.addEventListener("dragleave", () => {
+        item.classList.remove("drag-over-top","drag-over-bottom");
+      });
+      item.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const targetId = item.dataset.releaseId;
+        const before = item.classList.contains("drag-over-top");
+        item.classList.remove("drag-over-top","drag-over-bottom");
+        if(!dragReleaseId || dragReleaseId === targetId) return;
+        const fromIdx = state.releases.findIndex(r => r.id === dragReleaseId);
+        let toIdx = state.releases.findIndex(r => r.id === targetId);
+        if(fromIdx === -1 || toIdx === -1) return;
+        const [moved] = state.releases.splice(fromIdx, 1);
+        toIdx = state.releases.findIndex(r => r.id === targetId); // Index nach dem Entfernen neu bestimmen
+        state.releases.splice(before ? toIdx : toIdx+1, 0, moved);
+        saveState();
+        renderAll();
+      });
+    });
+  }
+  function navItem(id, name, status){
     const el = document.createElement("div");
     el.className = "nav-item" + (state.activeId === id ? " active" : "");
-    el.title = name;
-    const isFirst = index === 0, isLast = index === count-1;
+    el.title = id==="overview" ? name : name + " — zum Verschieben ziehen";
+    if(id !== "overview") el.dataset.releaseId = id;
     el.innerHTML = `<span class="nav-dot"></span><span class="nav-name"></span>` +
-      (id!=="overview" ? `
-        <button class="nav-move" data-dir="-1" title="Nach oben verschieben" ${isFirst?"disabled":""}>&#9650;</button>
-        <button class="nav-move" data-dir="1" title="Nach unten verschieben" ${isLast?"disabled":""}>&#9660;</button>
-        <button class="nav-del" title="Release löschen">&times;</button>` : "");
+      (id!=="overview" ? `<button class="nav-del" title="Release löschen">&times;</button>` : "");
     el.querySelector(".nav-name").textContent = name;
     const dot = el.querySelector(".nav-dot");
     dot.style.background = id === "overview" ? "var(--accent)" : statusMeta(status).dot;
     el.onclick = (e) => {
-      if(e.target.closest(".nav-del") || e.target.closest(".nav-move")) return;
+      if(e.target.closest(".nav-del")) return;
       state.activeId = id; saveState(); renderAll();
     };
-    el.querySelectorAll(".nav-move").forEach(btn => {
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        moveRelease(id, parseInt(btn.dataset.dir, 10));
-      };
-    });
     const del = el.querySelector(".nav-del");
     if(del){
       // Zwei-Klick-Bestätigung statt window.confirm (in Artifact-Sandbox nicht verlässlich verfügbar)
@@ -2318,21 +2496,6 @@
       };
     }
     return el;
-  }
-  // Verschiebt ein Release in der linken Navigation eine Position nach oben (-1) oder unten (+1).
-  // Die Reihenfolge ist bewusst eine reine Anzeige-Einstellung dieses Browsers/Geräts — sie wird
-  // nicht als eigenes Feld in der Supabase-Tabelle "releases" mitsynchronisiert (dafür müsste die
-  // Tabelle um eine Sortierspalte erweitert werden). Jede Person kann sich die Liste also
-  // unabhängig nach eigenem Bedarf anordnen, ohne die Ansicht anderer zu beeinflussen.
-  function moveRelease(id, dir){
-    const idx = state.releases.findIndex(r => r.id === id);
-    const swapWith = idx + dir;
-    if(idx === -1 || swapWith < 0 || swapWith >= state.releases.length) return;
-    const tmp = state.releases[idx];
-    state.releases[idx] = state.releases[swapWith];
-    state.releases[swapWith] = tmp;
-    saveState();
-    renderAll();
   }
 
   function addRelease(){
@@ -2450,15 +2613,35 @@
     onScroll();
   }
 
-  // Zeigt beim Überfahren der Zeitachsen-Zeile (Monatsraster) das darunterliegende Datum an.
-  function attachTimelineHover(rowEl, rangeStart, dayWidth, totalDays){
-    rowEl.addEventListener("mousemove", (e) => {
+  // Zeigt beim Überfahren der Zeitachsen-Zeile (Monatsraster) das darunterliegende Datum an —
+  // UND blendet zusätzlich eine durchgehende senkrechte Linie über die gesamte Höhe des
+  // Zeitachsenbereichs ein, damit die Mausposition zeitlich eindeutig verortet werden kann
+  // (nicht nur im Kopf, sondern auch entlang aller Aufgaben-/Release-Zeilen darunter).
+  // rowEl: die Monats-/Datumszeile, an der mousemove gemessen wird (bestimmt den Tag).
+  // scrollEl: der gesamte scrollende Zeitachsen-Container (.gantt-scroll) — hier wird die Linie
+  // eingehängt, damit sie über die volle (auch außerhalb des sichtbaren Bereichs liegende) Höhe reicht.
+  function attachTimelineHover(rowEl, scrollEl, rangeStart, dayWidth, totalDays){
+    if(!rowEl || !scrollEl) return;
+    let line = scrollEl.querySelector(":scope > .gantt-hoverline");
+    if(!line){
+      line = document.createElement("div");
+      line.className = "gantt-hoverline";
+      scrollEl.appendChild(line);
+    }
+    const onMove = (e) => {
       const rect = rowEl.getBoundingClientRect();
       let dayIdx = Math.floor((e.clientX - rect.left) / dayWidth);
       dayIdx = Math.max(0, Math.min(totalDays - 1, dayIdx));
       showTip(`<b>${fmtDate(addDays(rangeStart, dayIdx))}</b>`, e.clientX, e.clientY);
-    });
-    rowEl.addEventListener("mouseleave", hideTip);
+      const scrollRect = scrollEl.getBoundingClientRect();
+      line.style.left = (e.clientX - scrollRect.left + scrollEl.scrollLeft) + "px";
+      line.style.display = "block";
+    };
+    const onLeave = () => { hideTip(); line.style.display = "none"; };
+    rowEl.addEventListener("mousemove", onMove);
+    rowEl.addEventListener("mouseleave", onLeave);
+    scrollEl.addEventListener("mousemove", onMove);
+    scrollEl.addEventListener("mouseleave", onLeave);
   }
 
   /* ---------------- View: Übersicht ---------------- */
@@ -2527,7 +2710,7 @@
           <div class="legend">
             <span><span class="legend-swatch" style="background:var(--accent)"></span>Zeitraum</span>
             <span><span class="legend-swatch" style="background:var(--weekend)"></span>Wochenende</span>
-            <span><span class="legend-swatch" style="background:var(--holiday-soft)"></span>Feiertag (BW)</span>
+            <span><span class="legend-swatch" style="background:var(--holiday-soft)"></span>Feiertag (${esc(holidayRegionName(holidayRegion))})</span>
             <span><span class="legend-swatch" style="background:var(--today)"></span>Heute</span>
           </div>
         </div>
@@ -2551,15 +2734,17 @@
       </div>`;
 
     const ovMonthsEl = document.getElementById("ovMonths");
+    const ovScrollEl = document.getElementById("ovScroll");
     buildMonthHeader(ovMonthsEl, rangeStart, totalDays, dayWidth);
-    attachTimelineHover(ovMonthsEl, rangeStart, dayWidth, totalDays);
+    attachTimelineHover(ovMonthsEl, ovScrollEl, rangeStart, dayWidth, totalDays);
     pinRowToScroll(ovMonthsEl.closest(".gantt-wrap"), ovMonthsEl);
+    ensureHolidayYearsLoaded([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
     const tracks = root.querySelectorAll("[data-bgtrack]");
     tracks.forEach((track, i) => {
       const x = schedules[i];
-      const milestones = getMilestones(x.release, x.sched);
-      const milestoneOffsets = milestones.map(m => Math.round((m.date - rangeStart)/MS_DAY));
-      buildDayBackground(track, rangeStart, totalDays, dayWidth, milestoneOffsets);
+      const labeled = getLabeledTasks(x.release, x.sched);
+      const labelOffsets = labeled.map(m => Math.round((m.date - rangeStart)/MS_DAY));
+      buildDayBackground(track, rangeStart, totalDays, dayWidth, labelOffsets);
       const startOffset = Math.round((x.sched.minStart - rangeStart)/MS_DAY);
       const endOffset = Math.round((x.sched.maxEnd - rangeStart)/MS_DAY);
       const doneCount = x.release.tasks.filter(t=>t.done).length;
@@ -2685,34 +2870,39 @@
       </div>` : "";
 
     root.innerHTML = cardsHtml + configHtml + overdueBannerHtml + `
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Ablaufplan</h2>
-          <div class="legend">
-            <span><span class="legend-swatch" style="background:var(--success)"></span>Erledigt</span>
-            <span><span class="legend-swatch" style="background:var(--accent)"></span>Geplant</span>
-            <span><span class="legend-swatch" style="background:var(--weekend)"></span>Wochenende</span>
-            <span><span class="legend-swatch" style="background:var(--holiday-soft)"></span>Feiertag (BW)</span>
-            <span><span class="legend-swatch" style="background:var(--today)"></span>Heute</span>
-            <span><span class="legend-swatch" style="border:2px dashed var(--warning); background:transparent;"></span>Meilenstein</span>
+      <div class="release-split">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Ablaufplan</h2>
+            <div class="legend">
+              <span><span class="legend-swatch" style="background:var(--success)"></span>Erledigt</span>
+              <span><span class="legend-swatch" style="background:var(--accent)"></span>Geplant</span>
+              <span><span class="legend-swatch" style="background:var(--weekend)"></span>Wochenende</span>
+              <span><span class="legend-swatch" style="background:var(--holiday-soft)"></span>Feiertag (${esc(holidayRegionName(holidayRegion))})</span>
+              <span><span class="legend-swatch" style="background:var(--today)"></span>Heute</span>
+              <span><span class="legend-swatch" style="border:2px dashed var(--warning); background:transparent;"></span>Label</span>
+            </div>
+            <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle</span>
+          </div>
+          <div class="gantt-wrap">
+            <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
+            <div class="gantt-scroll" id="relScroll">
+              <div class="gantt-month-row" id="relMonths" style="height:40px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
+              <div id="relRowsHost"></div>
+            </div>
           </div>
         </div>
-        <div class="gantt-wrap">
-          <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
-          <div class="gantt-scroll" id="relScroll">
-            <div class="gantt-month-row" id="relMonths" style="height:40px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
-            <div id="relRowsHost"></div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Aufgaben bearbeiten</h2>
+            <span class="hint">Dauer und ${esc(TASK_COL_LABELS.lag)} in Arbeitstagen (Mo–Fr, ohne Feiertage) — Klick auf eine Zeile springt zur Aufgabe im Ablaufplan</span>
           </div>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Aufgaben bearbeiten</h2>
-          <span class="hint">Dauer und Puffer in Arbeitstagen (Mo–Fr, ohne Feiertage) — Änderungen aktualisieren den Ablaufplan sofort</span>
-        </div>
-        <div class="panel-body" style="padding:0; overflow-x:auto;">
-          <div class="task-table-toolbar" id="taskTableToolbar"></div>
-          <table class="tasks" id="taskTable"></table>
+          <div class="panel-body" style="padding:0; overflow:hidden;">
+            <div class="task-table-toolbar" id="taskTableToolbar"></div>
+            <div class="task-table-scroll">
+              <table class="tasks" id="taskTable"></table>
+            </div>
+          </div>
         </div>
       </div>
       <div class="panel">
@@ -2758,6 +2948,59 @@
     }
   }
 
+  /* ---------------- Aufgaben: Hinzufügen / Löschen / Verschieben ---------------- */
+  function addTask(release){
+    const t = {
+      id: "t_"+Math.random().toString(36).slice(2,9),
+      name: "Neue Aufgabe", resp: "", duration: 1, lag: 0, done: false, label: ""
+    };
+    release.tasks.push(t);
+    saveState(); renderAll(); scheduleSyncPush(release);
+    return t;
+  }
+  function removeTask(release, taskId){
+    const idx = release.tasks.findIndex(t => t.id === taskId);
+    if(idx === -1) return;
+    release.tasks.splice(idx, 1);
+    saveState(); renderAll(); scheduleSyncPush(release);
+  }
+  function moveTask(release, taskId, dir){
+    const idx = release.tasks.findIndex(t => t.id === taskId);
+    const swapWith = idx + dir;
+    if(idx === -1 || swapWith < 0 || swapWith >= release.tasks.length) return;
+    const tmp = release.tasks[idx];
+    release.tasks[idx] = release.tasks[swapWith];
+    release.tasks[swapWith] = tmp;
+    saveState(); renderAll(); scheduleSyncPush(release);
+  }
+
+  // Verknüpfung Aufgabentabelle <-> Zeitachse: kurzes Aufblitzen + Scroll-in-Sicht auf die jeweils
+  // andere Darstellung derselben Aufgabe, damit man sie nicht erst manuell suchen muss.
+  function flashAndScrollTo(el, container){
+    if(!el) return;
+    el.classList.remove("row-flash"); void el.offsetWidth; // Reflow erzwingen, damit die Animation bei wiederholtem Klick neu startet
+    el.classList.add("row-flash");
+    const scrollParent = container || el.closest(".task-table-scroll, .gantt-wrap");
+    if(scrollParent){
+      const elRect = el.getBoundingClientRect(), parentRect = scrollParent.getBoundingClientRect();
+      if(elRect.top < parentRect.top || elRect.bottom > parentRect.bottom){
+        scrollParent.scrollTop += (elRect.top - parentRect.top) - (parentRect.height/2 - elRect.height/2);
+      }
+    }
+  }
+  function highlightTaskInTable(taskId){
+    const row = document.querySelector(`tr[data-task-id="${cssEsc(taskId)}"]`);
+    flashAndScrollTo(row, row && row.closest(".task-table-scroll"));
+  }
+  function highlightTaskInGantt(taskId){
+    const row = document.querySelector(`#relRowsHost .gantt-row[data-task-id="${cssEsc(taskId)}"]`);
+    const nameRow = document.querySelector(`#relFixed .gantt-row[data-task-id="${cssEsc(taskId)}"]`);
+    flashAndScrollTo(row, document.querySelector(".gantt-wrap"));
+    if(nameRow) nameRow.classList.add("row-flash");
+    if(nameRow) setTimeout(() => nameRow.classList.remove("row-flash"), 1400);
+  }
+  function cssEsc(s){ return String(s).replace(/["\\]/g, "\\$&"); }
+
   function scrollGanttToToday(){
     const line = document.querySelector("#relRowsHost .gantt-todayline");
     const scrollEl = document.getElementById("relScroll");
@@ -2773,7 +3016,7 @@
     el.style.height = el.scrollHeight + "px";
   }
 
-  const TASK_COL_LABELS = { name:"Schritt", resp:"Verantwortlich", duration:"Dauer", lag:"Puffer", start:"Start", end:"Ende", done:"Status" };
+  const TASK_COL_LABELS = { name:"Schritt", resp:"Verantwortlich", duration:"Dauer", lag:"Next Step", start:"Start", end:"Ende", done:"Status", label:"Label" };
 
   function taskFilterMatches(col, filterVal, rawValue){
     if(filterVal == null || filterVal === "") return true;
@@ -2821,7 +3064,8 @@
         taskFilterMatches("lag", f.lag, r.t.lag) &&
         taskFilterMatches("start", f.start, fmtDateShort(r.start)) &&
         taskFilterMatches("end", f.end, fmtDateShort(r.end)) &&
-        taskFilterMatches("done", f.done, r.t.done);
+        taskFilterMatches("done", f.done, r.t.done) &&
+        taskFilterMatches("label", f.label, r.t.label);
     });
 
     if(ui.sortCol){
@@ -2835,6 +3079,7 @@
           case "start": return r.start ? r.start.getTime() : 0;
           case "end": return r.end ? r.end.getTime() : 0;
           case "done": return r.t.done ? 1 : 0;
+          case "label": return (r.t.label||"").toLowerCase();
           default: return 0;
         }
       };
@@ -2849,21 +3094,29 @@
     const sortArrow = (col) => ui.sortCol === col ? `<span class="sort-arrow">${ui.sortDir===1?"▲":"▼"}</span>` : `<span class="sort-arrow sort-arrow-hint">⇅</span>`;
     const filterVal = (col) => escAttr(ui.filters[col]||"");
 
+    // Verschieben (Reihenfolge im zugrundeliegenden Array) ist nur eindeutig, wenn weder gefiltert
+    // noch sortiert wird — sonst könnten zwischen zwei sichtbaren Zeilen ausgeblendete Zeilen liegen.
+    const reorderAllowed = !ui.sortCol && !Object.values(ui.filters).some(v => v);
+
     tableEl.innerHTML = `
       <colgroup>
-        <col style="width:34px;"><col style="width:40px;"><col><col style="width:22%;">
-        <col style="width:70px;"><col style="width:70px;"><col style="width:96px;"><col style="width:128px;">
+        <col style="width:34px;"><col style="width:30px;"><col style="width:32px;"><col><col style="width:120px;">
+        <col style="width:58px;"><col style="width:74px;"><col style="width:82px;"><col style="width:100px;">
+        <col style="width:120px;"><col style="width:30px;">
       </colgroup>
       <thead>
         <tr class="col-headers">
+          <th style="width:40px;" title="${reorderAllowed?"":"Verschieben nur ohne Sortierung/Filter möglich"}"></th>
           <th style="width:34px;"></th>
           <th style="width:40px;">#</th>
           <th class="sortable" data-sort="name">Schritt${sortArrow("name")}</th>
           <th class="sortable" data-sort="resp">Verantwortlich${sortArrow("resp")}</th>
-          <th class="num-cell sortable" style="width:70px;" data-sort="duration">Dauer${sortArrow("duration")}</th>
-          <th class="num-cell sortable" style="width:70px;" data-sort="lag">Puffer${sortArrow("lag")}</th>
+          <th class="num-cell sortable" style="width:64px;" data-sort="duration">Dauer${sortArrow("duration")}</th>
+          <th class="num-cell sortable" style="width:80px;" data-sort="lag">${esc(TASK_COL_LABELS.lag)}${sortArrow("lag")}</th>
           <th class="sortable" data-sort="start">Start${sortArrow("start")}</th>
           <th class="sortable" data-sort="end">Ende${sortArrow("end")}</th>
+          <th class="sortable" data-sort="label">Label${sortArrow("label")}</th>
+          <th style="width:34px;"></th>
         </tr>
         <tr class="col-filters">
           <th></th>
@@ -2874,12 +3127,15 @@
               <option value="done" ${ui.filters.done==="done"?"selected":""}>Erledigt</option>
             </select>
           </th>
+          <th></th>
           <th><input class="col-filter-input" data-filter="name" placeholder="Filtern…" value="${filterVal("name")}"></th>
           <th><input class="col-filter-input" data-filter="resp" placeholder="Filtern…" value="${filterVal("resp")}"></th>
           <th><input class="col-filter-input num-cell" data-filter="duration" placeholder="z. B. >5" value="${filterVal("duration")}"></th>
           <th><input class="col-filter-input num-cell" data-filter="lag" placeholder="z. B. >5" value="${filterVal("lag")}"></th>
           <th><input class="col-filter-input" data-filter="start" placeholder="TT.MM." value="${filterVal("start")}"></th>
           <th><input class="col-filter-input" data-filter="end" placeholder="TT.MM." value="${filterVal("end")}"></th>
+          <th><input class="col-filter-input" data-filter="label" placeholder="Filtern…" value="${filterVal("label")}"></th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="taskBody"></tbody>`;
@@ -2887,21 +3143,31 @@
     const body = tableEl.querySelector("#taskBody");
 
     if(rows.length === 0){
-      body.innerHTML = `<tr><td colspan="8" class="empty">Keine Aufgaben entsprechen den aktuellen Filtern.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="11" class="empty">Keine Aufgaben entsprechen den aktuellen Filtern.</td></tr>`;
     }
 
-    rows.forEach(({t, i, start, end, overdue}) => {
+    rows.forEach(({t, i, start, end, overdue}, visibleIdx) => {
       const tr = document.createElement("tr");
       tr.className = t.done ? "done" : "";
+      tr.dataset.taskId = t.id;
+      const isFirst = i === 0, isLast = i === release.tasks.length - 1;
       tr.innerHTML = `
+        <td>
+          <div class="task-move-cell">
+            <button type="button" class="task-move-btn" data-dir="-1" title="Nach oben verschieben" ${(!reorderAllowed||isFirst)?"disabled":""}>&#9650;</button>
+            <button type="button" class="task-move-btn" data-dir="1" title="Nach unten verschieben" ${(!reorderAllowed||isLast)?"disabled":""}>&#9660;</button>
+          </div>
+        </td>
         <td><input type="checkbox" class="chk" ${t.done?"checked":""}></td>
         <td class="mono" style="color:var(--ink-faint);">${i+1}</td>
-        <td><div class="task-name-cell"><textarea class="text-input textarea-auto task-name" rows="1">${esc(t.name)}</textarea>${isMilestoneTask(t.name)?'<span class="pill pill-warning" style="flex:none;">Meilenstein</span>':""}</div></td>
+        <td><div class="task-name-cell"><textarea class="text-input textarea-auto task-name" rows="1">${esc(t.name)}</textarea></div></td>
         <td><textarea class="text-input textarea-auto resp-input" rows="1">${esc(t.resp||"")}</textarea></td>
         <td class="num-cell"><input type="number" min="0" class="num-input dur-input" value="${t.duration}"></td>
         <td class="num-cell"><input type="number" min="0" class="num-input lag-input" value="${t.lag}"></td>
         <td class="date-cell">${fmtDateShort(start)}</td>
-        <td class="date-cell">${fmtDateShort(end)} ${overdue?'<span class="pill pill-critical" style="margin-left:6px;">Verzug</span>':""}</td>`;
+        <td class="date-cell">${fmtDateShort(end)} ${overdue?'<span class="pill pill-critical" style="margin-left:6px;">Verzug</span>':""}</td>
+        <td><input type="text" class="label-input" placeholder="z. B. Meilenstein" value="${escAttr(t.label||"")}"></td>
+        <td><button type="button" class="task-del-btn" title="Aufgabe löschen">&times;</button></td>`;
       tr.querySelector(".chk").onchange = (e) => { t.done = e.target.checked; saveState(); renderAll(); scheduleSyncPush(release); };
       const nameArea = tr.querySelector(".task-name");
       nameArea.oninput = () => autoGrowTextarea(nameArea);
@@ -2913,6 +3179,30 @@
       respArea.onchange = (e) => { t.resp = e.target.value; saveState(); renderAll(); scheduleSyncPush(release); };
       tr.querySelector(".dur-input").onchange = (e) => { t.duration = Math.max(0, parseInt(e.target.value)||0); saveState(); renderAll(); scheduleSyncPush(release); };
       tr.querySelector(".lag-input").onchange = (e) => { t.lag = Math.max(0, parseInt(e.target.value)||0); saveState(); renderAll(); scheduleSyncPush(release); };
+      tr.querySelector(".label-input").onchange = (e) => { t.label = e.target.value.trim(); saveState(); renderAll(); scheduleSyncPush(release); };
+      tr.querySelectorAll(".task-move-btn").forEach(btn => {
+        btn.onclick = (e) => { e.stopPropagation(); moveTask(release, t.id, parseInt(btn.dataset.dir, 10)); };
+      });
+      const delBtn = tr.querySelector(".task-del-btn");
+      delBtn.onclick = (e) => {
+        e.stopPropagation();
+        if(delBtn.dataset.confirm === "1"){ removeTask(release, t.id); return; }
+        delBtn.dataset.confirm = "1";
+        delBtn.classList.add("confirm");
+        delBtn.textContent = "Löschen?";
+        clearTimeout(delBtn._resetTimer);
+        delBtn._resetTimer = setTimeout(() => {
+          delBtn.dataset.confirm = "";
+          delBtn.classList.remove("confirm");
+          delBtn.innerHTML = "&times;";
+        }, 3000);
+      };
+      // Klick auf die Zeile (außerhalb der Eingabefelder/Buttons) hebt die zugehörige Zeile in
+      // der Zeitachse hervor und scrollt sie in Sicht — Verknüpfung Tabelle -> Zeitachse.
+      tr.addEventListener("click", (e) => {
+        if(e.target.closest("input, textarea, button")) return;
+        highlightTaskInGantt(t.id);
+      });
       body.appendChild(tr);
     });
 
@@ -2953,14 +3243,17 @@
   }
 
   function renderTaskTableToolbar(tableEl, release, ui, shown, total){
-    const toolbar = tableEl.parentElement && tableEl.parentElement.querySelector("#taskTableToolbar");
+    const toolbar = document.getElementById("taskTableToolbar");
     if(!toolbar) return;
     const hasFilter = Object.values(ui.filters).some(v => v);
     const hasSort = !!ui.sortCol;
     let countText = shown === total ? `${total} Aufgabe${total===1?"":"n"}` : `${shown} von ${total} Aufgaben angezeigt`;
     toolbar.innerHTML = `
       <span class="task-table-count">${countText}</span>
-      ${(hasFilter||hasSort) ? '<button type="button" class="btn btn-ghost btn-sm" id="taskFilterReset">Filter &amp; Sortierung zurücksetzen</button>' : ""}`;
+      <span style="display:flex; gap:8px; align-items:center;">
+        ${(hasFilter||hasSort) ? '<button type="button" class="btn btn-ghost btn-sm" id="taskFilterReset">Filter &amp; Sortierung zurücksetzen</button>' : ""}
+        <button type="button" class="btn btn-sm" id="taskAddBtn">&#43; Aufgabe hinzufügen</button>
+      </span>`;
     const resetBtn = toolbar.querySelector("#taskFilterReset");
     if(resetBtn){
       resetBtn.onclick = () => {
@@ -2968,6 +3261,7 @@
         renderTaskTable(tableEl, release);
       };
     }
+    toolbar.querySelector("#taskAddBtn").onclick = () => addTask(release);
   }
 
   function renderReleaseGantt(release, sched){
@@ -2983,52 +3277,63 @@
     const dayWidth = state.dayWidth;
 
     const monthsEl = document.getElementById("relMonths");
+    const scrollEl = document.getElementById("relScroll");
     buildMonthHeader(monthsEl, rangeStart, totalDays, dayWidth);
-    attachTimelineHover(monthsEl, rangeStart, dayWidth, totalDays);
+    attachTimelineHover(monthsEl, scrollEl, rangeStart, dayWidth, totalDays);
     pinRowToScroll(monthsEl.closest(".gantt-wrap"), monthsEl);
+    ensureHolidayYearsLoaded([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
 
-    const milestones = getMilestones(release, sched);
-    const milestoneOffsets = milestones.map(m => Math.round((m.date - rangeStart)/MS_DAY));
-    milestones.forEach((m,mi) => {
-      const off = milestoneOffsets[mi];
+    const labeled = getLabeledTasks(release, sched);
+    const labelOffsets = labeled.map(m => Math.round((m.date - rangeStart)/MS_DAY));
+    labeled.forEach((m,mi) => {
+      const off = labelOffsets[mi];
       if(off < 0 || off >= totalDays) return;
       const flag = document.createElement("div");
       flag.className = "gantt-milestone-flag";
       flag.style.left = (off*dayWidth + dayWidth/2)+"px";
       flag.style.bottom = "2px";
+      flag.style.cursor = "pointer";
       flag.textContent = m.label;
-      flag.title = m.label + " · " + fmtDate(m.date);
+      flag.title = m.label + " · " + fmtDate(m.date) + " — Klicken, um zur Aufgabe zu springen";
+      flag.onclick = () => highlightTaskInTable(m.id);
       monthsEl.appendChild(flag);
     });
 
     release.tasks.forEach((t,i) => {
       const overdue = !t.done && sched.ends[i] < today;
+      const label = (t.label||"").trim();
       const nameRow = document.createElement("div");
       nameRow.className = "gantt-row";
+      nameRow.dataset.taskId = t.id;
       nameRow.innerHTML = `<span class="gantt-name" title="${escAttr(t.name)}">${esc(t.name)}</span>` +
-        (isMilestoneTask(t.name) ? `<span class="pill pill-warning" style="flex:none;">Meilenstein</span>` : "") +
+        (label ? `<span class="pill pill-warning" style="flex:none;">${esc(label)}</span>` : "") +
         (overdue ? `<span class="pill pill-critical" style="flex:none;">Verzug</span>` : "");
+      nameRow.onclick = () => highlightTaskInTable(t.id);
       fixed.appendChild(nameRow);
 
       const track = document.createElement("div");
       track.className = "gantt-row";
+      track.dataset.taskId = t.id;
       track.style.width = (totalDays*dayWidth)+"px";
       track.style.position = "relative";
+      track.onclick = (e) => { if(!e.target.closest(".gantt-bar")) highlightTaskInTable(t.id); };
       const bg = document.createElement("div");
       bg.className = "gantt-track";
       bg.style.width = (totalDays*dayWidth)+"px";
-      buildDayBackground(bg, rangeStart, totalDays, dayWidth, milestoneOffsets);
+      buildDayBackground(bg, rangeStart, totalDays, dayWidth, labelOffsets);
       const startOffset = Math.round((sched.starts[i] - rangeStart)/MS_DAY);
       const endOffset = Math.round((sched.ends[i] - rangeStart)/MS_DAY);
       const bar = document.createElement("div");
       bar.className = "gantt-bar" + (t.done ? " done" : "") + (overdue ? " overdue" : "");
       bar.style.left = (startOffset*dayWidth)+"px";
       bar.style.width = Math.max(dayWidth-2, (endOffset-startOffset+1)*dayWidth - 3)+"px";
+      bar.style.cursor = "pointer";
       bar.textContent = (t.duration>1 ? (t.duration+"AT") : "");
       bar.addEventListener("mousemove", (e)=>{
         showTip(`<b>${esc(t.name)}</b><br>${fmtDate(sched.starts[i])} → ${fmtDate(sched.ends[i])}<br>Verantwortlich: ${esc(t.resp||"–")}` + (overdue ? `<br><span style="color:#f3a39d;">in Verzug</span>` : ""), e.clientX, e.clientY);
       });
       bar.addEventListener("mouseleave", hideTip);
+      bar.addEventListener("click", (e) => { e.stopPropagation(); highlightTaskInTable(t.id); });
       bg.appendChild(bar);
       track.appendChild(bg);
       rowsHost.appendChild(track);
@@ -3127,15 +3432,6 @@
   // läuft die Microsoft-Anmeldung deshalb stattdessen über ein eigenes Popup-Fenster.
   const IS_EMBEDDED = (function(){ try{ return window.self !== window.top; }catch(e){ return true; } })();
 
-  // Merker, den das Hauptfenster (der eingebettete Teams-Tab) im localStorage setzt, kurz bevor
-  // es das Anmelde-Popup öffnet. Da localStorage pro Origin geteilt wird, kann das Popup — sobald
-  // die Anmeldung dort abgeschlossen ist — daran zuverlässig erkennen "ich bin das Popup, nicht
-  // die normale App-Instanz". Das ist nötig, weil window.opener sich in der Teams-Desktop-App bei
-  // über authentication.authenticate() geöffneten Anmeldefenstern NICHT verlässlich setzen lässt
-  // (genau das war die Ursache dafür, dass sich das Popup zuvor nicht automatisch geschlossen hat,
-  // sondern stattdessen die komplette App im Popup selbst angezeigt wurde).
-  const SSO_POPUP_FLAG = "release-radar-sso-popup-pending";
-
   // Lädt bei Bedarf das offizielle Microsoft-Teams-JavaScript-SDK nach und prüft, ob dieses
   // Fenster tatsächlich von Microsoft Teams verwaltet wird (nicht jedes iFrame ist Teams, z. B.
   // Confluence; und auch das separate Anmelde-Popup-Fenster selbst muss das prüfen können, obwohl
@@ -3164,6 +3460,56 @@
       document.head.appendChild(script);
     });
     return teamsSdkPromise;
+  }
+
+  // Erkennt früh — noch bevor die eigentliche App aufgebaut wird —, ob diese Fensterinstanz
+  // gerade nur dazu dient, eine soeben abgeschlossene Microsoft-Anmeldung an das ursprüngliche
+  // Fenster zurückzumelden (der Fall, wenn dies das separate Anmelde-Popup für eingebettete
+  // Kontexte wie einen Teams-Tab oder ein Confluence-iFrame ist). Trifft das zu, wird HIER schon
+  // abgebrochen: die App wird in diesem Fenster gar nicht erst aufgebaut, stattdessen wird das
+  // Ergebnis zurückgemeldet und das Fenster schließt sich selbst.
+  //
+  // Bewusst NICHT über window.opener oder gemeinsam genutzten localStorage erkannt: Microsoft
+  // Teams (vor allem die Desktop-App) öffnet das Anmeldefenster über einen eigenen internen
+  // Mechanismus, bei dem weder window.opener zuverlässig gesetzt noch localStorage zwangsläufig
+  // mit dem Haupttab geteilt ist (eigene Speicher-Partition) — genau das war die Ursache, warum
+  // sich das Popup zuvor nicht automatisch geschlossen hat, sondern stattdessen die komplette App
+  // darin angezeigt wurde. Der einzige von Microsoft dafür vorgesehene, zuverlässige Weg ist
+  // teams.authentication.notifySuccess()/notifyFailure(), aufgerufen aus genau diesem
+  // Popup-Fenster heraus, sobald das Teams-SDK den frameContext "authentication" meldet.
+  async function handleAuthCallbackWindow(){
+    const hash = window.location.hash || "";
+    if(!/[#&]access_token=/.test(hash)) return false;
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    if(!accessToken || !refreshToken) return false;
+    const payload = JSON.stringify({ access_token: accessToken, refresh_token: refreshToken });
+
+    // 1. Bevorzugt: der offizielle Teams-Weg — funktioniert unabhängig von window.opener/localStorage.
+    try{
+      const teams = await loadTeamsSdkIfInTeams();
+      if(teams && teams.app && teams.app.getContext && teams.authentication && teams.authentication.notifySuccess){
+        const context = await teams.app.getContext();
+        if(context && context.page && context.page.frameContext === "authentication"){
+          teams.authentication.notifySuccess(payload);
+          return true;
+        }
+      }
+    }catch(e){}
+
+    // 2. Fallback (kein Teams, z. B. Confluence-iFrame mit einfachem window.open()): Ergebnis per
+    // postMessage an das öffnende Fenster schicken. window.opener ist hier normalerweise
+    // zuverlässig, da dieses Popup über ein gewöhnliches window.open() erzeugt wurde.
+    if(window.opener){
+      try{
+        window.opener.postMessage({ type: "release-radar-sso-result", payload }, window.location.origin);
+        window.close();
+        return true;
+      }catch(e){}
+    }
+
+    return false; // Weder Teams-Auth-Kontext noch window.opener erkannt — normal weiterladen (Sicherheitsnetz)
   }
 
   function userDisplayName(){
@@ -3234,37 +3580,10 @@
       currentUser = session ? session.user : null;
       updateSyncUI();
       if(currentUser && !hadUser){
-        // Läuft dieses Fenster selbst als das Anmelde-Popup (von signInSso() für eingebettete
-        // Kontexte geöffnet), dann NICHT die App hier im Popup aufbauen — stattdessen das Popup
-        // schließen bzw. Teams informieren. Erkennung bewusst NICHT über window.opener (das ist
-        // in der Teams-Desktop-App bei über authentication.authenticate() geöffneten Fenstern
-        // unzuverlässig — genau das führte zuvor dazu, dass sich das Popup nicht schloss, sondern
-        // die komplette App darin anzeigte), sondern über einen im localStorage hinterlegten
-        // Merker: das Hauptfenster setzt ihn kurz vor dem Öffnen des Popups, und genau das Fenster,
-        // das die Anmeldung tatsächlich abschließt (also das Popup selbst, dessen eigener
-        // Redirect gerade zu Ende gelaufen ist), liest und entfernt ihn zuerst. Das eigentliche
-        // Teams-Tab-Fenster bekommt die neue Session unabhängig davon automatisch über
-        // supabase-js' eingebauten storage-Event-Abgleich (beide Fenster teilen denselben
-        // localStorage) und reagiert etwas später mit demselben Zweig auf sein eigenes
-        // onAuthStateChange — findet den Merker dann aber schon entfernt vor und baut die App
-        // normal auf.
-        let iAmPopup = false;
-        try{
-          const flagTs = Number(localStorage.getItem(SSO_POPUP_FLAG));
-          if(flagTs && (Date.now() - flagTs) < 5 * 60 * 1000){
-            iAmPopup = true;
-            localStorage.removeItem(SSO_POPUP_FLAG);
-          }
-        }catch(e){}
-        if(iAmPopup){
-          loadTeamsSdkIfInTeams().then((teams) => {
-            if(teams && teams.authentication && teams.authentication.notifySuccess){
-              try{ teams.authentication.notifySuccess("ok"); return; }catch(e){}
-            }
-            try{ window.close(); }catch(e){}
-          });
-          return;
-        }
+        // Hinweis: Bei eingebetteter Anmeldung (Teams-Tab/iFrame) läuft dieser Zweig NUR im
+        // Hauptfenster — das separate Anmelde-Popup übernimmt nie selbst eine Session (siehe
+        // handleAuthCallbackWindow() und signInSso()), meldet sein Ergebnis stattdessen zurück
+        // und schließt sich eigenständig.
         hideAuthGate();
         initialCloudSync();
       }else if(!currentUser && hadUser){
@@ -3315,25 +3634,19 @@
     // seite in einem iFrame darzustellen (schwarze/leere Seite statt Anmeldemaske). Daher hier
     // stattdessen ein separates Popup-Fenster für die Anmeldung öffnen — läuft die App tatsächlich
     // in Teams, über die von Teams empfohlene authentication.authenticate()-Methode, sonst über
-    // ein einfaches window.open(). Die fertige Session wird danach automatisch (über den
-    // browserinternen storage-Event-Abgleich von supabase-js) an dieses Fenster übernommen.
+    // ein einfaches window.open(). Das Popup übernimmt NIE selbst eine Session (siehe
+    // handleAuthCallbackWindow()) — es meldet die erhaltenen Tokens stattdessen direkt an dieses
+    // Fenster zurück, das damit hier explizit supabaseClient.auth.setSession() aufruft. Das
+    // umgeht zuverlässig jede Storage-Partitionierung zwischen Popup und Haupttab, die in der
+    // Teams-Desktop-App dazu führte, dass sich das Popup zuvor nicht automatisch schloss.
     //
     // WICHTIG (Browser-Popup-Blocker): Ein Popup wird von Browsern nur dann anstandslos zugelassen,
     // wenn window.open() noch INNERHALB der synchronen Klick-Verarbeitung aufgerufen wird — nach
     // einem "await" gilt der Klick nicht mehr als unmittelbarer Auslöser und der Browser blockiert
-    // das Popup meist stumm. Genau das ist vermutlich der Grund, warum die Anmeldung in der
-    // Teams-Webversion (echter Browser, strengere Regeln) nicht funktioniert hat, in der
-    // Teams-Desktop-App (eigene Chromium-Hülle, großzügiger) aber schon. Deshalb übergibt der
-    // Klick-Handler hier bereits ein VORAB (noch synchron) geöffnetes, leeres Popup-Fenster
-    // (preOpenedPopup), das erst jetzt — nachdem die Anmelde-URL von Supabase da ist — auf die
-    // eigentliche Adresse umgeleitet wird, statt window.open() erst hier neu aufzurufen.
-    //
-    // Merker setzen, damit genau das Fenster, in dem die Anmeldung tatsächlich abgeschlossen wird
-    // (das Popup), sich später selbst erkennen und schließen kann (siehe SSO_POPUP_FLAG oben).
-    // Zeitstempel statt einfachem "1", damit ein liegen gebliebener Merker aus einem abgebrochenen
-    // früheren Versuch (z. B. Browser-Absturz vor Abschluss) nicht Monate später eine ganz normale
-    // Anmeldung fälschlich als Popup einstuft.
-    try{ localStorage.setItem(SSO_POPUP_FLAG, String(Date.now())); }catch(e){}
+    // das Popup meist stumm. Deshalb übergibt der Klick-Handler hier bereits ein VORAB (noch
+    // synchron) geöffnetes, leeres Popup-Fenster (preOpenedPopup), das erst jetzt — nachdem die
+    // Anmelde-URL von Supabase da ist — auf die eigentliche Adresse umgeleitet wird, statt
+    // window.open() erst hier neu aufzurufen.
     try{
       const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: "azure",
@@ -3343,30 +3656,55 @@
       const url = data && data.url;
       if(!url) throw new Error("Keine Anmelde-URL erhalten");
       const teams = await loadTeamsSdkIfInTeams();
+      let resultPayload;
+
       if(teams && teams.authentication && teams.authentication.authenticate){
-        // Teams verwaltet sein eigenes Anmeldefenster — das vorab geöffnete leere Popup wird
-        // hierfür nicht gebraucht und wieder geschlossen, damit nicht zwei Fenster offen bleiben.
+        // Läuft tatsächlich in Microsoft Teams: offizieller, von Teams selbst verwalteter
+        // Anmelde-Dialog. Das vorab geöffnete leere Popup wird dafür nicht gebraucht.
         if(preOpenedPopup){ try{ preOpenedPopup.close(); }catch(e){} }
-        await new Promise((resolve, reject) => {
+        resultPayload = await new Promise((resolve, reject) => {
           teams.authentication.authenticate({
             url, width: 480, height: 680,
-            successCallback: () => resolve(),
+            successCallback: (result) => resolve(result),
             failureCallback: (reason) => reject(new Error(reason || "Anmeldung abgebrochen"))
           });
         });
-      }else if(preOpenedPopup && !preOpenedPopup.closed){
-        preOpenedPopup.location.href = url;
       }else{
-        // Fallback, falls aus irgendeinem Grund kein vorab geöffnetes Popup übergeben wurde
-        // (z. B. Aufruf außerhalb des unmittelbaren Klick-Kontexts).
-        const popup = window.open(url, "release-radar-sso", "width=480,height=680");
+        // Kein Teams (z. B. Confluence-iFrame): einfaches Popup-Fenster. Das Ergebnis kommt per
+        // postMessage vom Popup zurück (siehe handleAuthCallbackWindow()).
+        const popup = (preOpenedPopup && !preOpenedPopup.closed) ? preOpenedPopup : window.open(url, "release-radar-sso", "width=480,height=680");
         if(!popup) throw new Error("Popup wurde vom Browser blockiert — bitte Popups für diese Seite erlauben.");
+        if(preOpenedPopup) preOpenedPopup.location.href = url;
+        resultPayload = await new Promise((resolve, reject) => {
+          let settled = false;
+          const onMessage = (ev) => {
+            if(ev.origin !== window.location.origin) return;
+            if(!ev.data || ev.data.type !== "release-radar-sso-result") return;
+            settled = true;
+            window.removeEventListener("message", onMessage);
+            clearInterval(closeWatcher);
+            resolve(ev.data.payload);
+          };
+          window.addEventListener("message", onMessage);
+          const closeWatcher = setInterval(() => {
+            if(popup.closed && !settled){
+              clearInterval(closeWatcher);
+              window.removeEventListener("message", onMessage);
+              reject(new Error("Anmeldefenster wurde geschlossen, bevor die Anmeldung abgeschlossen war."));
+            }
+          }, 500);
+        });
       }
+
+      const tokens = JSON.parse(resultPayload);
+      const { error: sessionError } = await supabaseClient.auth.setSession({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token
+      });
+      if(sessionError) throw sessionError;
+      // onAuthStateChange feuert jetzt regulär in diesem (Haupt-)Fenster — normaler Ablauf.
       return true;
     }catch(e){
-      // Merker wieder entfernen, wenn der Versuch fehlschlägt/abgebrochen wird — sonst würde ein
-      // späterer, ganz normaler Login-Versuch fälschlich als "ich bin das Popup" erkannt.
-      try{ localStorage.removeItem(SSO_POPUP_FLAG); }catch(e2){}
       if(preOpenedPopup){ try{ preOpenedPopup.close(); }catch(e2){} }
       showAuthFormError("Anmeldung fehlgeschlagen: " + (e && e.message ? e.message : e) + " Bitte prüfen Sie, ob Ihr Browser Popups für diese Seite erlaubt.");
       return false;
@@ -3686,6 +4024,10 @@
 
   /* ---------------- Init ---------------- */
   document.addEventListener("DOMContentLoaded", async () => {
+    // Allererste Prüfung: ist dieses Fenster nur das Anmelde-Popup, das gerade ein Anmeldeergebnis
+    // zurückmelden soll? Falls ja, hier abbrechen — die App wird in diesem Fenster gar nicht erst
+    // aufgebaut (siehe handleAuthCallbackWindow()).
+    if(await handleAuthCallbackWindow()) return;
     // Frühzeitig (nicht erst beim Anmelde-Klick) prüfen, ob wir in Microsoft Teams eingebettet
     // sind — das Ergebnis wird gecacht, damit beim tatsächlichen Anmelde-Klick keine zusätzliche
     // Wartezeit mehr entsteht (wichtig für Popup-Blocker, siehe signInSso()).
@@ -3705,6 +4047,14 @@
     document.getElementById("sideExpand").onclick = () => setSidebarCollapsed(false);
     document.getElementById("brandMarkToggle").onclick = () => setSidebarCollapsed(!state.sidebarCollapsed);
     initMobileNav();
+
+    const holidaySelect = document.getElementById("holidayRegionSelect");
+    if(holidaySelect){
+      holidaySelect.innerHTML = GERMAN_STATES.map(s => `<option value="${s.code}" ${s.code===holidayRegion?"selected":""}>${esc(s.name)}</option>`).join("");
+      holidaySelect.onchange = () => setHolidayRegion(holidaySelect.value);
+    }
+    // Feiertage für das laufende und das kommende Jahr direkt beim Start im Hintergrund laden.
+    ensureHolidayYearsLoaded([new Date().getFullYear(), new Date().getFullYear()+1]);
 
     renderAll();
 
