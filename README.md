@@ -66,7 +66,3 @@ Die `index.html` liegt im Repository-Root und wird direkt über GitHub Pages aus
 - Drag & Drop zum Verschieben der Release-Kacheln funktioniert nur mit der Maus (Desktop), nicht per Touch.
 - Die Feiertagsdaten für nicht-baden-württembergische Bundesländer hängen von der Erreichbarkeit der externen Nager.Date-API ab; in restriktiven Netzwerken (z. B. Unternehmensproxy) greift automatisch der lokale Fallback für Baden-Württemberg.
 - Der Teams-SSO-Login wurde nach der offiziellen Microsoft-Teams-JS-SDK-Dokumentation umgesetzt (`microsoftTeams.authentication.notifySuccess`); bei Auffälligkeiten in einer bestimmten Teams-Version bitte mit Screenshot melden.
-
-## Kontakt
-
-Denislav Kolaksazov, evia solutions GmbH – Komm.UNITY-Projekt (Komm.ONE)
