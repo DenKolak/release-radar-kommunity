@@ -295,7 +295,11 @@
   .progress > i{ display:block; height:100%; background:var(--success); border-radius:99px; }
 
   /* ---------- gantt ---------- */
-  .gantt-wrap{ display:flex; align-items:flex-start; border-top:1px solid var(--border); max-height:min(560px, 65vh); overflow-y:auto; }
+  .gantt-wrap{
+    display:flex; align-items:flex-start; border-top:1px solid var(--border);
+    height:min(560px, 65vh); min-height:180px; max-height:88vh; overflow-y:auto;
+    resize:vertical;
+  }
   .gantt-fixed{
     width:280px; flex:none; border-right:1px solid var(--border); background:var(--bg-elevated);
   }
@@ -440,10 +444,32 @@
   @media (min-width: 1180px){
     .release-split{ flex-direction:row; align-items:flex-start; }
     .release-split > .panel{ flex:1 1 50%; min-width:0; margin-bottom:0 !important; }
-    .release-split .gantt-wrap{ max-height:min(640px, 72vh); }
-    .release-split .task-table-scroll{ max-height:min(640px, 72vh); }
+    .release-split .gantt-wrap{ height:min(640px, 72vh); }
+    .release-split .task-table-scroll{ height:min(640px, 72vh); }
   }
-  .task-table-scroll{ overflow:auto; max-height:min(480px, 60vh); }
+  .task-table-scroll{
+    overflow:auto; height:min(480px, 60vh); min-height:180px; max-height:88vh;
+    resize:vertical;
+  }
+
+  /* ---------- Panel per Knopfdruck vollflächig anzeigen ("Vollbild"/"auspoppen") ----------
+     Bewusst als eigenes CSS-Overlay statt der nativen Fullscreen-API umgesetzt: Letztere wird
+     in eingebetteten Kontexten wie einem Microsoft-Teams-Tab (iFrame ohne allowfullscreen)
+     meist stillschweigend verweigert. z-index 45 liegt bewusst UNTER dem Tooltip (50), damit
+     Hover-Tipps auf Balken/Zeilen auch im Vollbild weiterhin sichtbar sind, aber über der
+     restlichen Seite (mobile Navigations-Drawer bei Bedarf weiterhin darüber, z-index 60/80). */
+  .panel.maximized{
+    position:fixed; inset:0; z-index:45; margin:0 !important; border-radius:0;
+    display:flex; flex-direction:column; box-shadow:none;
+  }
+  .panel.maximized .panel-head{ flex:none; }
+  .panel.maximized .panel-body{ flex:1 1 auto; display:flex; flex-direction:column; overflow:hidden; }
+  .panel.maximized .gantt-wrap,
+  .panel.maximized .task-table-scroll{
+    flex:1 1 auto; height:auto !important; max-height:none !important; resize:none;
+  }
+  body.panel-maximized-active{ overflow:hidden; }
+  .panel-maximize-btn{ flex:none; }
 
   .legend{ display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--ink-soft); align-items:center; }
   .legend-swatch{ width:12px; height:12px; border-radius:3px; display:inline-block; margin-right:5px; vertical-align:-2px; }
@@ -2795,7 +2821,7 @@
   }
 
   /* ---------------- View: Release-Detail ---------------- */
-  function renderRelease(root, release){
+  function renderRelease(root, release, isSameView){
     document.getElementById("topTitle").innerHTML = "";
     const titleWrap = document.getElementById("topTitle");
     titleWrap.style.display = "flex";
@@ -2893,7 +2919,7 @@
 
     root.innerHTML = cardsHtml + configHtml + overdueBannerHtml + `
       <div class="release-split">
-        <div class="panel">
+        <div class="panel${maximizedPanel==="gantt" ? " maximized" : ""}">
           <div class="panel-head">
             <h2>Ablaufplan</h2>
             <div class="legend">
@@ -2906,6 +2932,7 @@
               <span><span class="legend-swatch" style="border:2px dashed var(--warning); background:transparent;"></span>Label</span>
             </div>
             <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle — der farbige Punkt vor dem Aufgabennamen zeigt den Status (grau = offen, orange = in Arbeit, grün = erledigt, rot = blockiert)</span>
+            <button type="button" class="btn btn-ghost btn-sm panel-maximize-btn" id="btnMaximizeGantt" title="${maximizedPanel==="gantt" ? "Vollbild schließen" : "Ablaufplan im Vollbild anzeigen"}">${maximizedPanel==="gantt" ? "Schließen" : "Vollbild"}</button>
           </div>
           <div class="gantt-wrap">
             <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
@@ -2915,10 +2942,11 @@
             </div>
           </div>
         </div>
-        <div class="panel">
+        <div class="panel${maximizedPanel==="tasks" ? " maximized" : ""}">
           <div class="panel-head">
             <h2>Aufgaben bearbeiten</h2>
             <span class="hint">Dauer und ${esc(TASK_COL_LABELS.lag)} in Arbeitstagen (Mo–Fr, ohne Feiertage) — Klick auf eine Zeile springt zur Aufgabe im Ablaufplan</span>
+            <button type="button" class="btn btn-ghost btn-sm panel-maximize-btn" id="btnMaximizeTasks" title="${maximizedPanel==="tasks" ? "Vollbild schließen" : "Aufgabenliste im Vollbild anzeigen"}">${maximizedPanel==="tasks" ? "Schließen" : "Vollbild"}</button>
           </div>
           <div class="panel-body" style="padding:0; overflow:hidden;">
             <div class="task-table-toolbar" id="taskTableToolbar"></div>
@@ -2950,23 +2978,31 @@
     root.querySelector("#notesArea").onchange = (e) => {
       release.notes = e.target.value; saveState(); scheduleSyncPush(release);
     };
+    root.querySelector("#btnMaximizeGantt").onclick = () => toggleMaximizePanel("gantt");
+    root.querySelector("#btnMaximizeTasks").onclick = () => toggleMaximizePanel("tasks");
 
+    applyPersistedPanelHeights();
     renderTaskTable(root.querySelector("#taskTable"), release);
     renderReleaseGantt(release, sched);
-    // Beim ersten Öffnen: "Heute" zeigen, wenn es im Planungszeitraum liegt, sonst den Anfang des Plans.
-    if(today >= sched.minStart && today <= sched.maxEnd){
-      scrollGanttToToday();
-    } else {
-      const scrollEl = document.getElementById("relScroll");
-      if(scrollEl) scrollEl.scrollLeft = 0;
-    }
-    // vertikal zum ersten offenen Schritt scrollen, damit der aktuelle Stand sofort sichtbar ist
-    const firstOpenIdx = release.tasks.findIndex(t => !t.done);
-    if(firstOpenIdx > 0){
-      const wrap = document.querySelector(".gantt-wrap");
-      const rows = document.querySelectorAll("#relFixed .gantt-row:not(.head)");
-      if(wrap && rows[firstOpenIdx]){
-        wrap.scrollTop = Math.max(0, rows[firstOpenIdx].offsetTop - 80);
+    // Automatisches Anspringen von "Heute" bzw. dem ersten offenen Schritt nur beim ERSTEN Aufbau
+    // dieser Ansicht (Release-Wechsel) — bei einer bloßen Neuzeichnung nach einer Bearbeitung
+    // (Status ändern, Aufgabe verschieben, periodischer Sync-Abgleich …) bleibt die aktuelle
+    // Scroll-Position stattdessen erhalten (siehe renderAll()/captureViewScrollState()).
+    if(!isSameView){
+      if(today >= sched.minStart && today <= sched.maxEnd){
+        scrollGanttToToday();
+      } else {
+        const scrollEl = document.getElementById("relScroll");
+        if(scrollEl) scrollEl.scrollLeft = 0;
+      }
+      // vertikal zum ersten offenen Schritt scrollen, damit der aktuelle Stand sofort sichtbar ist
+      const firstOpenIdx = release.tasks.findIndex(t => !t.done);
+      if(firstOpenIdx > 0){
+        const wrap = document.querySelector(".gantt-wrap");
+        const rows = document.querySelectorAll("#relFixed .gantt-row:not(.head)");
+        if(wrap && rows[firstOpenIdx]){
+          wrap.scrollTop = Math.max(0, rows[firstOpenIdx].offsetTop - 80);
+        }
       }
     }
   }
@@ -3457,8 +3493,80 @@
   function esc(s){ return String(s==null?"":s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
   function escAttr(s){ return esc(s).replace(/"/g,"&quot;"); }
 
-  /* ---------------- Root render ---------------- */
+  /* ---------------- Root render ----------------
+     renderAll() reißt root.innerHTML bei JEDEM Aufruf komplett ab und baut die Ansicht neu auf
+     (auch bei einer kleinen Bearbeitung wie einem Status-Wechsel oder dem periodischen
+     Hintergrund-Sync-Abgleich alle 45s) — ohne Gegenmaßnahme würde das jedes Mal die
+     Scroll-Position von Ablaufplan/Aufgabentabelle auf den Anfang zurücksetzen. Deshalb wird
+     die aktuelle Scroll-Position hier festgehalten und nach dem Neuaufbau wieder hergestellt,
+     sofern es sich um dieselbe Ansicht handelt (kein Release-Wechsel) — siehe
+     captureViewScrollState()/restoreViewScrollState() sowie das isSameView-Flag in
+     renderRelease(), das dort das einmalige "zu Heute/erster offener Schritt springen" beim
+     erstmaligen Öffnen eines Release von einer bloßen Neuzeichnung unterscheidet. */
+  let lastRenderedViewId = null;
+  function captureViewScrollState(){
+    const ganttWrap = document.querySelector(".gantt-wrap");
+    const taskScroll = document.querySelector(".task-table-scroll");
+    const relScroll = document.getElementById("relScroll") || document.getElementById("ovScroll");
+    return {
+      ganttScrollTop: ganttWrap ? ganttWrap.scrollTop : null,
+      taskScrollTop: taskScroll ? taskScroll.scrollTop : null,
+      relScrollLeft: relScroll ? relScroll.scrollLeft : null
+    };
+  }
+  function restoreViewScrollState(snap){
+    if(!snap) return;
+    const ganttWrap = document.querySelector(".gantt-wrap");
+    const taskScroll = document.querySelector(".task-table-scroll");
+    const relScroll = document.getElementById("relScroll") || document.getElementById("ovScroll");
+    if(ganttWrap && snap.ganttScrollTop != null) ganttWrap.scrollTop = snap.ganttScrollTop;
+    if(taskScroll && snap.taskScrollTop != null) taskScroll.scrollTop = snap.taskScrollTop;
+    if(relScroll && snap.relScrollLeft != null) relScroll.scrollLeft = snap.relScrollLeft;
+  }
+
+  // Welches der beiden Release-Panels (falls überhaupt eins) gerade vollflächig angezeigt wird —
+  // bewusst außerhalb von "state" (rein visueller UI-Zustand, nicht Teil der gespeicherten/
+  // synchronisierten Daten) und wird bei jedem renderRelease()-Aufbau erneut angewendet, da
+  // sonst der Vollbild-Modus bei der nächsten Bearbeitung sofort wieder verschwinden würde.
+  let maximizedPanel = null; // null | "gantt" | "tasks"
+  function toggleMaximizePanel(which){
+    maximizedPanel = (maximizedPanel === which) ? null : which;
+    document.body.classList.toggle("panel-maximized-active", !!maximizedPanel);
+    renderAll();
+  }
+
+  // Größe von Ablaufplan/Aufgabentabelle (per Ziehen an der Ecke veränderbar, siehe CSS
+  // "resize:vertical") bleibt geräteweit erhalten, auch über einen Release-Wechsel oder einen
+  // Seiten-Neuladen hinweg — die tatsächliche Persistierung übernimmt ein einmalig registrierter
+  // mouseup-Listener (siehe initPanelResizePersistence()).
+  function applyPersistedPanelHeights(){
+    try{
+      const gh = localStorage.getItem("release-radar-gantt-height");
+      const ganttWrap = document.querySelector(".gantt-wrap");
+      if(gh && ganttWrap) ganttWrap.style.height = gh;
+      const th = localStorage.getItem("release-radar-tasktable-height");
+      const taskScroll = document.querySelector(".task-table-scroll");
+      if(th && taskScroll) taskScroll.style.height = th;
+    }catch(e){}
+  }
+  function initPanelResizePersistence(){
+    document.addEventListener("mouseup", () => {
+      const ganttWrap = document.querySelector(".gantt-wrap");
+      const taskScroll = document.querySelector(".task-table-scroll");
+      try{
+        if(ganttWrap && ganttWrap.style.height) localStorage.setItem("release-radar-gantt-height", ganttWrap.style.height);
+        if(taskScroll && taskScroll.style.height) localStorage.setItem("release-radar-tasktable-height", taskScroll.style.height);
+      }catch(e){}
+    });
+    document.addEventListener("keydown", (e) => {
+      if(e.key === "Escape" && maximizedPanel) toggleMaximizePanel(maximizedPanel);
+    });
+  }
+
   function renderAll(){
+    const isSameView = (lastRenderedViewId === state.activeId);
+    const scrollSnap = isSameView ? captureViewScrollState() : null;
+    lastRenderedViewId = state.activeId;
     renderNav();
     const root = document.getElementById("viewRoot");
     root.innerHTML = "";
@@ -3468,8 +3576,9 @@
     } else {
       const rel = getRelease(state.activeId);
       if(!rel){ state.activeId = "overview"; renderAll(); return; }
-      renderRelease(root, rel);
+      renderRelease(root, rel, isSameView);
     }
+    if(scrollSnap) restoreViewScrollState(scrollSnap);
   }
 
   /* ---------------- Sidebar ein-/ausklappen ---------------- */
@@ -4170,6 +4279,7 @@
     document.getElementById("sideExpand").onclick = () => setSidebarCollapsed(false);
     document.getElementById("brandMarkToggle").onclick = () => setSidebarCollapsed(!state.sidebarCollapsed);
     initMobileNav();
+    initPanelResizePersistence();
 
     const holidaySelect = document.getElementById("holidayRegionSelect");
     if(holidaySelect){
