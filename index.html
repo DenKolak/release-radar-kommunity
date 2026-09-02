@@ -332,6 +332,7 @@
     font-size:11px; color:#fff; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.15);
   }
   .gantt-bar.done{ background:var(--success); }
+  .gantt-bar.blocked{ background:var(--critical); }
   .gantt-bar.overdue{ box-shadow:0 0 0 2px var(--critical); }
   .gantt-bar.overview{ top:9px; height:16px; border-radius:99px; }
   .gantt-bar.overview.status-released{ background:var(--success); }
@@ -381,7 +382,11 @@
   table.tasks td{ padding:6px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
   table.tasks tr.done td{ color:var(--ink-faint); }
   table.tasks tr.done .task-name{ text-decoration:line-through; text-decoration-color:var(--border-strong); }
+  table.tasks tr.blocked td{ background:var(--critical-soft); }
   table.tasks tr:hover td{ background:var(--bg-sunken); }
+  table.tasks tr.dragging td{ opacity:.35; }
+  table.tasks tr.drag-over-top td{ box-shadow:inset 0 2px 0 var(--accent); }
+  table.tasks tr.drag-over-bottom td{ box-shadow:inset 0 -2px 0 var(--accent); }
   .task-name-cell{ display:flex; align-items:flex-start; gap:8px; }
   .num-cell{ text-align:right; }
   .num-input{
@@ -401,13 +406,21 @@
   .chk{ width:16px; height:16px; accent-color:var(--success); cursor:pointer; }
   .date-cell{ font-family:"DM Sans",monospace; font-size:12px; color:var(--ink-soft); white-space:nowrap; }
 
-  .task-move-cell{ display:flex; flex-direction:column; gap:1px; }
-  .task-move-btn{
-    width:18px; height:14px; border:none; background:transparent; color:var(--ink-faint);
-    cursor:pointer; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:8px; padding:0;
+  .task-drag-handle{
+    display:flex; align-items:center; justify-content:center; width:20px; height:22px;
+    color:var(--ink-faint); font-size:14px; letter-spacing:-2px; cursor:grab; border-radius:4px;
   }
-  .task-move-btn:hover{ background:var(--bg-sunken); color:var(--ink); }
-  .task-move-btn:disabled{ opacity:.25; cursor:default; }
+  .task-drag-handle:hover{ background:var(--bg-sunken); color:var(--ink); }
+  .task-drag-handle[draggable="false"]{ cursor:not-allowed; }
+  .status-select{
+    width:100%; min-width:104px; padding:4px 6px; border-radius:6px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); font-size:12px; font-weight:600; cursor:pointer;
+  }
+  .status-select:focus{ outline:none; }
+  .status-select option{ color:var(--ink); font-weight:500; }
+  .task-status-dot{
+    display:inline-block; width:8px; height:8px; border-radius:50%; flex:none;
+  }
   .task-del-btn{
     width:22px; height:22px; border:none; background:transparent; color:var(--ink-faint);
     cursor:pointer; border-radius:6px; font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center;
@@ -2281,11 +2294,15 @@
     ["Information der Kunden über erfolgte Produktivsetzung","Releasemanager",1,0],
   ];
   function makeTemplateTasks(){
-    return DEFAULT_TEMPLATE.map((row,i)=>({
-      id: "t"+i+"_"+Math.random().toString(36).slice(2,8),
-      name: row[0], resp: row[1], duration: row[2], lag: row[3], done:false,
-      label: legacyAutoLabel(row[0])
-    }));
+    return DEFAULT_TEMPLATE.map((row,i)=>{
+      const t = {
+        id: "t"+i+"_"+Math.random().toString(36).slice(2,8),
+        name: row[0], resp: row[1], duration: row[2], lag: row[3],
+        label: legacyAutoLabel(row[0])
+      };
+      applyTaskStatus(t, "open");
+      return t;
+    });
   }
 
   /* ---------------- State ---------------- */
@@ -2318,11 +2335,15 @@
           mode: r.mode === "Start" ? "Start" : "Publishing",
           anchor: r.anchor,
           notes: "",
-          tasks: r.tasks.map((t,i)=>({
-            id:"t"+idx+"_"+i+"_"+Math.random().toString(36).slice(2,8),
-            name:t.name, resp:t.resp, duration:t.duration, lag:t.lag, done:!!t.done,
-            label: legacyAutoLabel(t.name)
-          }))
+          tasks: r.tasks.map((t,i)=>{
+            const nt = {
+              id:"t"+idx+"_"+i+"_"+Math.random().toString(36).slice(2,8),
+              name:t.name, resp:t.resp, duration:t.duration, lag:t.lag,
+              label: legacyAutoLabel(t.name)
+            };
+            applyTaskStatus(nt, t.done ? "done" : "open");
+            return nt;
+          })
         };
         rel.status = defaultStatusFor(rel);
         return rel;
@@ -2343,6 +2364,7 @@
       r.tasks.forEach(t => {
         if(typeof t.done !== "boolean") t.done = false;
         if(typeof t.label !== "string") t.label = legacyAutoLabel(t.name); // alter, namensbasierter Meilenstein -> echtes Label
+        if(!TASK_STATUS_META[t.status]) applyTaskStatus(t, t.done ? "done" : "open"); // älterer Stand ohne 4-stufigen Status
       });
     });
     return s;
@@ -2877,12 +2899,13 @@
             <div class="legend">
               <span><span class="legend-swatch" style="background:var(--success)"></span>Erledigt</span>
               <span><span class="legend-swatch" style="background:var(--accent)"></span>Geplant</span>
+              <span><span class="legend-swatch" style="background:var(--critical)"></span>Blockiert</span>
               <span><span class="legend-swatch" style="background:var(--weekend)"></span>Wochenende</span>
               <span><span class="legend-swatch" style="background:var(--holiday-soft)"></span>Feiertag (${esc(holidayRegionName(holidayRegion))})</span>
               <span><span class="legend-swatch" style="background:var(--today)"></span>Heute</span>
               <span><span class="legend-swatch" style="border:2px dashed var(--warning); background:transparent;"></span>Label</span>
             </div>
-            <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle</span>
+            <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle — der farbige Punkt vor dem Aufgabennamen zeigt den Status (grau = offen, orange = in Arbeit, grün = erledigt, rot = blockiert)</span>
           </div>
           <div class="gantt-wrap">
             <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
@@ -2952,8 +2975,9 @@
   function addTask(release){
     const t = {
       id: "t_"+Math.random().toString(36).slice(2,9),
-      name: "Neue Aufgabe", resp: "", duration: 1, lag: 0, done: false, label: ""
+      name: "Neue Aufgabe", resp: "", duration: 1, lag: 0, label: ""
     };
+    applyTaskStatus(t, "open");
     release.tasks.push(t);
     saveState(); renderAll(); scheduleSyncPush(release);
     return t;
@@ -2964,14 +2988,62 @@
     release.tasks.splice(idx, 1);
     saveState(); renderAll(); scheduleSyncPush(release);
   }
-  function moveTask(release, taskId, dir){
-    const idx = release.tasks.findIndex(t => t.id === taskId);
-    const swapWith = idx + dir;
-    if(idx === -1 || swapWith < 0 || swapWith >= release.tasks.length) return;
-    const tmp = release.tasks[idx];
-    release.tasks[idx] = release.tasks[swapWith];
-    release.tasks[swapWith] = tmp;
+  // Verschiebt eine Aufgabe im Array so, dass sie unmittelbar vor/nach der Zielaufgabe steht
+  // (per Maus gezogen — siehe initTaskDragReorder()).
+  function reorderTaskTo(release, taskId, targetTaskId, before){
+    const fromIdx = release.tasks.findIndex(t => t.id === taskId);
+    let toIdx = release.tasks.findIndex(t => t.id === targetTaskId);
+    if(fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+    const [moved] = release.tasks.splice(fromIdx, 1);
+    toIdx = release.tasks.findIndex(t => t.id === targetTaskId);
+    release.tasks.splice(before ? toIdx : toIdx+1, 0, moved);
     saveState(); renderAll(); scheduleSyncPush(release);
+  }
+
+  // Per-Maus-Drag&Drop zum Neusortieren der Aufgabenzeilen — funktioniert wie
+  // initReleaseDragReorder() für die Release-Kacheln, jedoch mit einem eigenen kleinen
+  // Ziehgriff pro Zeile (statt der ganzen Zeile), damit Textfelder/Eingaben in der Zeile
+  // normal nutzbar bleiben (Textauswahl etc. löst dadurch kein Drag aus).
+  let dragTaskId = null;
+  function initTaskDragReorder(tbody, release, reorderAllowed){
+    const rowsEls = tbody.querySelectorAll("tr[data-task-id]");
+    rowsEls.forEach(tr => {
+      const handle = tr.querySelector(".task-drag-handle");
+      if(!handle) return;
+      handle.setAttribute("draggable", reorderAllowed ? "true" : "false");
+      if(!reorderAllowed) return;
+      handle.addEventListener("dragstart", (e) => {
+        dragTaskId = tr.dataset.taskId;
+        tr.classList.add("dragging");
+        try{
+          e.dataTransfer.setData("text/plain", dragTaskId);
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setDragImage(tr, 20, 14);
+        }catch(err){}
+      });
+      handle.addEventListener("dragend", () => {
+        tbody.querySelectorAll("tr.dragging, tr.drag-over-top, tr.drag-over-bottom").forEach(el => el.classList.remove("dragging","drag-over-top","drag-over-bottom"));
+        dragTaskId = null;
+      });
+      tr.addEventListener("dragover", (e) => {
+        if(!dragTaskId || dragTaskId === tr.dataset.taskId) return;
+        e.preventDefault();
+        const rect = tr.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height/2;
+        tr.classList.toggle("drag-over-top", before);
+        tr.classList.toggle("drag-over-bottom", !before);
+      });
+      tr.addEventListener("dragleave", () => tr.classList.remove("drag-over-top","drag-over-bottom"));
+      tr.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const targetId = tr.dataset.taskId;
+        const before = tr.classList.contains("drag-over-top");
+        tr.classList.remove("drag-over-top","drag-over-bottom");
+        if(!dragTaskId || dragTaskId === targetId) return;
+        reorderTaskTo(release, dragTaskId, targetId, before);
+        dragTaskId = null;
+      });
+    });
   }
 
   // Verknüpfung Aufgabentabelle <-> Zeitachse: kurzes Aufblitzen + Scroll-in-Sicht auf die jeweils
@@ -3018,11 +3090,31 @@
 
   const TASK_COL_LABELS = { name:"Schritt", resp:"Verantwortlich", duration:"Dauer", lag:"Next Step", start:"Start", end:"Ende", done:"Status", label:"Label" };
 
+  // Vier-stufiger Aufgabenstatus (zusätzlich zum reinen Erledigt/Offen-Häkchen, das aus
+  // Kompatibilitätsgründen als t.done weiterhin mitgeführt wird — siehe applyTaskStatus()).
+  // Die Farben werden sowohl im Status-Auswahlfeld der Aufgabentabelle als auch als kleine
+  // farbliche Punkte im Ablaufplan (Zeitachse) verwendet.
+  const TASK_STATUS_META = {
+    open:     { label: "Offen",     color: "var(--ink-faint)" },
+    progress: { label: "In Arbeit", color: "var(--warning)" },
+    done:     { label: "Erledigt",  color: "var(--success)" },
+    blocked:  { label: "Blockiert", color: "var(--critical)" }
+  };
+  const TASK_STATUS_ORDER = { open: 0, progress: 1, blocked: 2, done: 3 };
+
+  // Setzt den Status einer Aufgabe und hält das ältere boolesche t.done-Feld synchron, damit
+  // Fortschritts-/Verzugsberechnungen sowie ältere, bereits synchronisierte Clients unverändert
+  // weiterfunktionieren (t.done === true genau dann, wenn status "done" ist).
+  function applyTaskStatus(t, status){
+    t.status = TASK_STATUS_META[status] ? status : "open";
+    t.done = t.status === "done";
+  }
+
   function taskFilterMatches(col, filterVal, rawValue){
     if(filterVal == null || filterVal === "") return true;
     const f = String(filterVal).trim();
-    if(col === "done"){
-      return f === "" || (f === "open" ? !rawValue : !!rawValue);
+    if(col === "status"){
+      return f === "" || f === rawValue;
     }
     if(col === "duration" || col === "lag"){
       const m = f.match(/^(>=|<=|>|<|=)?\s*(-?\d+(?:[.,]\d+)?)$/);
@@ -3052,7 +3144,7 @@
     let rows = release.tasks.map((t, i) => ({
       t, i,
       start: sched.starts[i], end: sched.ends[i],
-      overdue: !t.done && sched.ends[i] < today
+      overdue: t.status !== "done" && sched.ends[i] < today
     }));
 
     const total = rows.length;
@@ -3064,7 +3156,7 @@
         taskFilterMatches("lag", f.lag, r.t.lag) &&
         taskFilterMatches("start", f.start, fmtDateShort(r.start)) &&
         taskFilterMatches("end", f.end, fmtDateShort(r.end)) &&
-        taskFilterMatches("done", f.done, r.t.done) &&
+        taskFilterMatches("status", f.status, r.t.status) &&
         taskFilterMatches("label", f.label, r.t.label);
     });
 
@@ -3078,7 +3170,7 @@
           case "lag": return Number(r.t.lag)||0;
           case "start": return r.start ? r.start.getTime() : 0;
           case "end": return r.end ? r.end.getTime() : 0;
-          case "done": return r.t.done ? 1 : 0;
+          case "status": return TASK_STATUS_ORDER[r.t.status] || 0;
           case "label": return (r.t.label||"").toLowerCase();
           default: return 0;
         }
@@ -3100,14 +3192,14 @@
 
     tableEl.innerHTML = `
       <colgroup>
-        <col style="width:34px;"><col style="width:30px;"><col style="width:32px;"><col><col style="width:120px;">
+        <col style="width:28px;"><col style="width:118px;"><col style="width:32px;"><col><col style="width:120px;">
         <col style="width:58px;"><col style="width:74px;"><col style="width:82px;"><col style="width:100px;">
         <col style="width:120px;"><col style="width:30px;">
       </colgroup>
       <thead>
         <tr class="col-headers">
-          <th style="width:40px;" title="${reorderAllowed?"":"Verschieben nur ohne Sortierung/Filter möglich"}"></th>
-          <th style="width:34px;"></th>
+          <th style="width:28px;" title="${reorderAllowed?"Ziehen zum Verschieben":"Verschieben nur ohne Sortierung/Filter möglich"}"></th>
+          <th style="width:118px;">${esc(TASK_COL_LABELS.done)}</th>
           <th style="width:40px;">#</th>
           <th class="sortable" data-sort="name">Schritt${sortArrow("name")}</th>
           <th class="sortable" data-sort="resp">Verantwortlich${sortArrow("resp")}</th>
@@ -3121,10 +3213,9 @@
         <tr class="col-filters">
           <th></th>
           <th>
-            <select class="col-filter-input" data-filter="done">
+            <select class="col-filter-input" data-filter="status">
               <option value="">Alle</option>
-              <option value="open" ${ui.filters.done==="open"?"selected":""}>Offen</option>
-              <option value="done" ${ui.filters.done==="done"?"selected":""}>Erledigt</option>
+              ${Object.keys(TASK_STATUS_META).map(k => `<option value="${k}" ${ui.filters.status===k?"selected":""}>${esc(TASK_STATUS_META[k].label)}</option>`).join("")}
             </select>
           </th>
           <th></th>
@@ -3148,27 +3239,31 @@
 
     rows.forEach(({t, i, start, end, overdue}, visibleIdx) => {
       const tr = document.createElement("tr");
-      tr.className = t.done ? "done" : "";
+      tr.className = (t.status === "done" ? "done" : "") + (t.status === "blocked" ? " blocked" : "");
       tr.dataset.taskId = t.id;
-      const isFirst = i === 0, isLast = i === release.tasks.length - 1;
       tr.innerHTML = `
         <td>
-          <div class="task-move-cell">
-            <button type="button" class="task-move-btn" data-dir="-1" title="Nach oben verschieben" ${(!reorderAllowed||isFirst)?"disabled":""}>&#9650;</button>
-            <button type="button" class="task-move-btn" data-dir="1" title="Nach unten verschieben" ${(!reorderAllowed||isLast)?"disabled":""}>&#9660;</button>
-          </div>
+          <span class="task-drag-handle" title="${reorderAllowed?"Ziehen zum Verschieben":"Verschieben nur ohne Sortierung/Filter möglich"}" style="${reorderAllowed?"":"opacity:.35; cursor:not-allowed;"}">&#8942;&#8942;</span>
         </td>
-        <td><input type="checkbox" class="chk" ${t.done?"checked":""}></td>
+        <td>
+          <select class="status-select" style="color:${TASK_STATUS_META[t.status].color}; border-color:${TASK_STATUS_META[t.status].color};">
+            ${Object.keys(TASK_STATUS_META).map(k => `<option value="${k}" ${t.status===k?"selected":""}>&#9679; ${esc(TASK_STATUS_META[k].label)}</option>`).join("")}
+          </select>
+        </td>
         <td class="mono" style="color:var(--ink-faint);">${i+1}</td>
         <td><div class="task-name-cell"><textarea class="text-input textarea-auto task-name" rows="1">${esc(t.name)}</textarea></div></td>
         <td><textarea class="text-input textarea-auto resp-input" rows="1">${esc(t.resp||"")}</textarea></td>
         <td class="num-cell"><input type="number" min="0" class="num-input dur-input" value="${t.duration}"></td>
         <td class="num-cell"><input type="number" min="0" class="num-input lag-input" value="${t.lag}"></td>
         <td class="date-cell">${fmtDateShort(start)}</td>
-        <td class="date-cell">${fmtDateShort(end)} ${overdue?'<span class="pill pill-critical" style="margin-left:6px;">Verzug</span>':""}</td>
+        <td class="date-cell">${fmtDateShort(end)}</td>
         <td><input type="text" class="label-input" placeholder="z. B. Meilenstein" value="${escAttr(t.label||"")}"></td>
         <td><button type="button" class="task-del-btn" title="Aufgabe löschen">&times;</button></td>`;
-      tr.querySelector(".chk").onchange = (e) => { t.done = e.target.checked; saveState(); renderAll(); scheduleSyncPush(release); };
+      const statusSelect = tr.querySelector(".status-select");
+      statusSelect.onchange = (e) => {
+        applyTaskStatus(t, e.target.value);
+        saveState(); renderAll(); scheduleSyncPush(release);
+      };
       const nameArea = tr.querySelector(".task-name");
       nameArea.oninput = () => autoGrowTextarea(nameArea);
       nameArea.onkeydown = (e) => { if(e.key === "Enter"){ e.preventDefault(); nameArea.blur(); } };
@@ -3180,9 +3275,6 @@
       tr.querySelector(".dur-input").onchange = (e) => { t.duration = Math.max(0, parseInt(e.target.value)||0); saveState(); renderAll(); scheduleSyncPush(release); };
       tr.querySelector(".lag-input").onchange = (e) => { t.lag = Math.max(0, parseInt(e.target.value)||0); saveState(); renderAll(); scheduleSyncPush(release); };
       tr.querySelector(".label-input").onchange = (e) => { t.label = e.target.value.trim(); saveState(); renderAll(); scheduleSyncPush(release); };
-      tr.querySelectorAll(".task-move-btn").forEach(btn => {
-        btn.onclick = (e) => { e.stopPropagation(); moveTask(release, t.id, parseInt(btn.dataset.dir, 10)); };
-      });
       const delBtn = tr.querySelector(".task-del-btn");
       delBtn.onclick = (e) => {
         e.stopPropagation();
@@ -3200,7 +3292,7 @@
       // Klick auf die Zeile (außerhalb der Eingabefelder/Buttons) hebt die zugehörige Zeile in
       // der Zeitachse hervor und scrollt sie in Sicht — Verknüpfung Tabelle -> Zeitachse.
       tr.addEventListener("click", (e) => {
-        if(e.target.closest("input, textarea, button")) return;
+        if(e.target.closest("input, textarea, button, select, .task-drag-handle")) return;
         highlightTaskInGantt(t.id);
       });
       body.appendChild(tr);
@@ -3209,6 +3301,9 @@
     // Erst NACH dem Einhängen ins DOM lässt sich die benötigte Höhe korrekt messen
     // (scrollHeight eines noch nicht angehängten Elements ist immer 0).
     body.querySelectorAll("textarea.textarea-auto").forEach(autoGrowTextarea);
+
+    // Per-Maus-Drag&Drop zum Neusortieren (nur wenn weder sortiert noch gefiltert wird).
+    initTaskDragReorder(body, release, reorderAllowed);
 
     // Sortier-Klicks auf die Spaltenköpfe
     tableEl.querySelectorAll("th.sortable").forEach(th => {
@@ -3300,12 +3395,14 @@
     });
 
     release.tasks.forEach((t,i) => {
-      const overdue = !t.done && sched.ends[i] < today;
+      const overdue = t.status !== "done" && sched.ends[i] < today;
       const label = (t.label||"").trim();
+      const statusMeta = TASK_STATUS_META[t.status] || TASK_STATUS_META.open;
       const nameRow = document.createElement("div");
       nameRow.className = "gantt-row";
       nameRow.dataset.taskId = t.id;
-      nameRow.innerHTML = `<span class="gantt-name" title="${escAttr(t.name)}">${esc(t.name)}</span>` +
+      nameRow.innerHTML = `<span class="task-status-dot" style="background:${statusMeta.color};" title="Status: ${esc(statusMeta.label)}"></span>` +
+        `<span class="gantt-name" title="${escAttr(t.name)}">${esc(t.name)}</span>` +
         (label ? `<span class="pill pill-warning" style="flex:none;">${esc(label)}</span>` : "") +
         (overdue ? `<span class="pill pill-critical" style="flex:none;">Verzug</span>` : "");
       nameRow.onclick = () => highlightTaskInTable(t.id);
@@ -3324,13 +3421,13 @@
       const startOffset = Math.round((sched.starts[i] - rangeStart)/MS_DAY);
       const endOffset = Math.round((sched.ends[i] - rangeStart)/MS_DAY);
       const bar = document.createElement("div");
-      bar.className = "gantt-bar" + (t.done ? " done" : "") + (overdue ? " overdue" : "");
+      bar.className = "gantt-bar" + (t.status === "done" ? " done" : "") + (t.status === "blocked" ? " blocked" : "") + (overdue ? " overdue" : "");
       bar.style.left = (startOffset*dayWidth)+"px";
       bar.style.width = Math.max(dayWidth-2, (endOffset-startOffset+1)*dayWidth - 3)+"px";
       bar.style.cursor = "pointer";
       bar.textContent = (t.duration>1 ? (t.duration+"AT") : "");
       bar.addEventListener("mousemove", (e)=>{
-        showTip(`<b>${esc(t.name)}</b><br>${fmtDate(sched.starts[i])} → ${fmtDate(sched.ends[i])}<br>Verantwortlich: ${esc(t.resp||"–")}` + (overdue ? `<br><span style="color:#f3a39d;">in Verzug</span>` : ""), e.clientX, e.clientY);
+        showTip(`<b>${esc(t.name)}</b><br>${fmtDate(sched.starts[i])} → ${fmtDate(sched.ends[i])}<br>Verantwortlich: ${esc(t.resp||"–")}<br>Status: ${esc(statusMeta.label)}` + (overdue ? `<br><span style="color:#f3a39d;">in Verzug</span>` : ""), e.clientX, e.clientY);
       });
       bar.addEventListener("mouseleave", hideTip);
       bar.addEventListener("click", (e) => { e.stopPropagation(); highlightTaskInTable(t.id); });
@@ -3349,7 +3446,7 @@
     copy.updatedAt = new Date().toISOString();
     copy.name = release.name + " (Kopie)";
     copy.status = "open";
-    copy.tasks.forEach(t => { t.id = "t_"+Math.random().toString(36).slice(2,9); t.done = false; });
+    copy.tasks.forEach(t => { t.id = "t_"+Math.random().toString(36).slice(2,9); applyTaskStatus(t, "open"); });
     state.releases.push(copy);
     state.activeId = copy.id;
     saveState(); renderAll();
