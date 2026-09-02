@@ -765,7 +765,7 @@
 <script>
   window.RELEASE_RADAR_CONFIG = {
     enabled: true,
-    supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/",
+    supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/", // z. B. https://abcdefgh.supabase.co
     supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiamRoamVwbGxxeWRhZGFndG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3NTI4NTgsImV4cCI6MjEwMzMyODg1OH0.-zPhRT2GMUmzWtlVzF-80deEwqlBqKO4nxRDBbbYYuw"
   };
 </script>
@@ -3477,6 +3477,26 @@
   // darin angezeigt wurde. Der einzige von Microsoft dafür vorgesehene, zuverlässige Weg ist
   // teams.authentication.notifySuccess()/notifyFailure(), aufgerufen aus genau diesem
   // Popup-Fenster heraus, sobald das Teams-SDK den frameContext "authentication" meldet.
+  // Sonderfall NUR für die Anmeldung über das offizielle Teams-SDK: Laut Microsofts eigener
+  // Dokumentation muss die an teams.authentication.authenticate() übergebene Start-URL auf der
+  // EIGENEN Domain liegen (die auch in validDomains steht) — wird stattdessen direkt eine
+  // fremde Anmelde-URL (hier: die von Supabase) übergeben, bricht Teams die Anmeldung sofort mit
+  // "CancelledByUser" ab, obwohl Popups erlaubt sind und die Zieldomain in validDomains steht.
+  // Identity-Provider-Domains MITTEN in der Weiterleitungskette (Microsoft-Login, Supabase-
+  // Callback) sind davon nicht betroffen und müssen nicht gelistet sein — nur die allererste
+  // Start-URL. Deshalb übergibt signInSso() im Teams-Zweig nie direkt die Supabase-URL, sondern
+  // diese eigene Seite mit der Zieladresse als Query-Parameter; von hier aus erfolgt die
+  // eigentliche Weiterleitung per normaler Top-Level-Navigation, noch bevor die App aufgebaut wird.
+  function handleTeamsAuthRedirect(){
+    let target = null;
+    try{
+      target = new URLSearchParams(window.location.search || "").get("teamsAuthRedirect");
+    }catch(e){}
+    if(!target) return false;
+    window.location.replace(target);
+    return true;
+  }
+
   async function handleAuthCallbackWindow(){
     const hash = window.location.hash || "";
     if(!/[#&]access_token=/.test(hash)) return false;
@@ -3662,9 +3682,14 @@
         // Läuft tatsächlich in Microsoft Teams: offizieller, von Teams selbst verwalteter
         // Anmelde-Dialog. Das vorab geöffnete leere Popup wird dafür nicht gebraucht.
         if(preOpenedPopup){ try{ preOpenedPopup.close(); }catch(e){} }
+        // WICHTIG: Teams verlangt, dass die Start-URL auf der eigenen Domain liegt (siehe
+        // handleTeamsAuthRedirect()) — hier NICHT direkt die Supabase-URL übergeben, sonst bricht
+        // Teams mit "CancelledByUser" ab. Stattdessen die eigene Seite mit der eigentlichen
+        // Anmelde-URL als Query-Parameter, die von dort per Top-Level-Redirect weiterleitet.
+        const teamsStartUrl = baseUrl + "?teamsAuthRedirect=" + encodeURIComponent(url);
         resultPayload = await new Promise((resolve, reject) => {
           teams.authentication.authenticate({
-            url, width: 480, height: 680,
+            url: teamsStartUrl, width: 480, height: 680,
             successCallback: (result) => resolve(result),
             failureCallback: (reason) => reject(new Error(reason || "Anmeldung abgebrochen"))
           });
@@ -4027,6 +4052,7 @@
     // Allererste Prüfung: ist dieses Fenster nur das Anmelde-Popup, das gerade ein Anmeldeergebnis
     // zurückmelden soll? Falls ja, hier abbrechen — die App wird in diesem Fenster gar nicht erst
     // aufgebaut (siehe handleAuthCallbackWindow()).
+    if(handleTeamsAuthRedirect()) return;
     if(await handleAuthCallbackWindow()) return;
     // Frühzeitig (nicht erst beim Anmelde-Klick) prüfen, ob wir in Microsoft Teams eingebettet
     // sind — das Ergebnis wird gecacht, damit beim tatsächlichen Anmelde-Klick keine zusätzliche
