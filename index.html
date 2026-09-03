@@ -320,12 +320,18 @@
     content:""; position:absolute; top:0; bottom:0; left:3px; width:1px; background:var(--border-strong);
   }
   .gantt-resizer:hover::after, .gantt-resizer.dragging::after{ background:var(--accent); width:2px; left:2.5px; }
+  /* ".gantt-timeline" bündelt Kopfzeile (Monate/Tage) + scrollbare Zeilen übereinander als EIN
+     Flex-Item neben der Namensspalte. Wichtig: ".gantt-timeline" selbst setzt KEIN eigenes overflow
+     — sonst würde sie (wie früher ".gantt-scroll") zu einem eigenen "Scroll-Container" und damit die
+     Bezugsebene für "position:sticky" der Kopfzeile verfälschen (siehe ".gantt-month-row"-Kommentar
+     unten). Das eigentliche vertikale Scrollen bleibt Sache von ".gantt-body". */
+  .gantt-timeline{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; }
   /* Der native horizontale Scrollbalken der Zeitachse wird ausgeblendet — die Bedienung erfolgt
      stattdessen über den immer sichtbaren ".gantt-hscroll-dock" darunter (siehe dort). Mausrad-
      Scrollen, Touch-Wischen und Tastatur funktionieren weiterhin ganz normal, nur der optische,
      an dieser Stelle unerreichbare Balken verschwindet. */
   .gantt-scroll{
-    flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; position:relative;
+    flex:1 1 0%; min-width:0; min-height:0; overflow-x:auto; overflow-y:hidden; position:relative;
     scrollbar-width:none; -ms-overflow-style:none;
   }
   .gantt-scroll::-webkit-scrollbar{ display:none; }
@@ -399,7 +405,26 @@
   .gantt-bar.overview.status-released{ background:var(--success); }
   .gantt-bar.overview.status-active{ background:var(--accent); }
   .gantt-bar.overview.status-open{ background:var(--ink-faint); }
-  .gantt-month-row{ position:relative; z-index:2; will-change:transform; cursor:crosshair; }
+  /* ".gantt-month-row" ist die sichtbare, feststehende Kopfzeile: eigener, ausgeblendeter
+     Scrollbereich (overflow-x:auto + scrollbar-width:none), dessen Scroll-Position 1:1 mit der
+     Zeitachse darunter mitläuft (siehe linkScrollLeft() in app.js), UND per nativem
+     "position:sticky" oben fixiert. WICHTIG: das funktioniert nur, weil ".gantt-timeline" (der
+     Elternrahmen) selbst KEIN overflow setzt — sticky bezieht sich sonst auf den nächsten
+     Scroll-Container, und das wäre dann diese Zeile selbst statt ".gantt-body" (die eigentlich
+     scrollende Ebene). Vorher wurde die Kopfzeile stattdessen per JS-transform "mitgeschoben"
+     (siehe frühere Version von pinRowToScroll) — das erzeugte auf manchen Geräten/Zoomstufen eine
+     eigene Compositing-Ebene mit leicht ANDERER Sub-Pixel-Rundung als die Zeilen darunter, wodurch
+     Wochenend-/Feiertagsfärbung und Tagesbeschriftung sichtbar gegenüber den Zeilen versetzt wirken
+     konnten. Natives position:sticky + echtes scrollLeft (keine Transforms) vermeidet das komplett,
+     da Kopfzeile und Zeilen exakt denselben Rendering-Mechanismus nutzen. Der eigentliche Inhalt
+     (Monatsname, Wochenend-/Feiertagsfarbe, Tagesbeschriftung) liegt in ".gantt-month-row-inner"
+     darin, die auf die volle Zeitachsenbreite (totalDays*dayWidth) gesetzt wird. */
+  .gantt-month-row{
+    position:sticky; top:0; z-index:2; cursor:crosshair; flex:none;
+    overflow-x:auto; overflow-y:hidden; scrollbar-width:none; -ms-overflow-style:none;
+  }
+  .gantt-month-row::-webkit-scrollbar{ display:none; }
+  .gantt-month-row-inner{ position:relative; height:100%; }
   /* Monatsname sitzt jetzt am OBEREN Rand der (höheren) Kopfzeile, darunter folgt pro Tag eine
      kleine Wochentag+Tagesnummer-Beschriftung (siehe .gantt-daylabel) — macht die Achse deutlich
      lesbarer als nur "Okt 2026" etc. */
@@ -2785,20 +2810,20 @@
     }
   }
 
-  // Hält eine Zeile (z. B. die Monats-/Zeitachsen-Zeile) beim vertikalen Scrollen des
-  // umgebenden .gantt-wrap optisch oben "angeheftet". Reines CSS position:sticky reicht
-  // hier nicht aus, weil die Zeile in einem horizontal scrollenden Container (.gantt-scroll,
-  // overflow-x:auto) verschachtelt ist, der als eigener Sticky-Bezugsrahmen dazwischenfunkt.
-  function pinRowToScroll(wrapEl, rowEl){
-    if(!wrapEl || !rowEl) return;
-    // Math.round: eine gebrochene Verschiebung (z. B. bei nicht-ganzzahligem Scroll-Stand) würde die
-    // Kopfzeile auf eine eigene Compositing-Ebene mit eigener Subpixel-Rundung heben, wodurch ihre
-    // Wochenend-/Feiertagsfärbung minimal anders einrasten kann als die der Zeilen darunter (siehe
-    // Kommentar bei der Berechnung von "dayWidth" in renderOverview) — ganzzahlig verschieben
-    // vermeidet diesen Effekt zusätzlich zur ganzzahligen Tagesbreite.
-    const onScroll = () => { const t = Math.round(wrapEl.scrollTop); rowEl.style.transform = t ? `translateY(${t}px)` : ""; };
-    wrapEl.addEventListener("scroll", onScroll);
-    onScroll();
+  // Hält die horizontale Scroll-Position von ZWEI unabhängigen Scroll-Containern synchron (z. B.
+  // die feststehende Zeitachsen-Kopfzeile ".gantt-month-row" und die Zeilen darunter ".gantt-scroll",
+  // oder die Zeilen und den immer sichtbaren unteren Schieberegler ".gantt-hscroll-track"). Beide
+  // Richtungen sind verdrahtet, damit es keine Rolle spielt, an welchem der beiden Elemente
+  // tatsächlich gescrollt/gezogen wird. Eine "syncing"-Sperre pro Aufruf verhindert eine
+  // Rückkopplungsschleife (a→b→a→…). Bewusst über echtes scrollLeft statt CSS-transform gelöst
+  // (siehe Kommentar bei ".gantt-month-row" im <style>-Block) — Transforms auf einer eigenen
+  // Compositing-Ebene können auf manchen Geräten/Zoomstufen leicht anders gerundet werden als die
+  // Zeilen darunter, was zu sichtbar versetzten Wochenend-/Feiertagsspalten führen kann.
+  function linkScrollLeft(a, b){
+    if(!a || !b) return;
+    let syncing = false;
+    a.addEventListener("scroll", () => { if(syncing) return; syncing = true; b.scrollLeft = a.scrollLeft; syncing = false; });
+    b.addEventListener("scroll", () => { if(syncing) return; syncing = true; a.scrollLeft = b.scrollLeft; syncing = false; });
   }
 
   // Zeigt beim Überfahren der Zeitachsen-Zeile (Monatsraster) das darunterliegende Datum an —
@@ -2857,7 +2882,11 @@
   //          des Platzhalters vor dem Regler, damit dieser bündig unter der Zeitachse beginnt.
   // resizerEl: optionaler Ziehgriff zwischen Namensspalte und Zeitachse (nur im Ablaufplan,
   //            #ganttColResizer) — dessen Breite zählt beim Platzhalter mit.
-  function setupHScrollDock(scrollEl, fixedEl, resizerEl, spacerId, trackId, innerId){
+  // contentWidth: die volle Breite der Zeitachse (totalDays*dayWidth), explizit übergeben statt aus
+  //               scrollEl.scrollWidth gemessen — an dieser Stelle im Renderablauf ist #relRowsHost
+  //               teils noch leer (die Aufgabenzeilen werden erst danach gebaut), eine Messung würde
+  //               hier einen viel zu kleinen, veralteten Wert liefern und den Regler "verkürzen".
+  function setupHScrollDock(scrollEl, fixedEl, resizerEl, spacerId, trackId, innerId, contentWidth){
     const spacer = document.getElementById(spacerId);
     const track = document.getElementById(trackId);
     const inner = document.getElementById(innerId);
@@ -2865,16 +2894,8 @@
     const fixedWidth = fixedEl ? fixedEl.getBoundingClientRect().width : 0;
     const resizerWidth = resizerEl ? resizerEl.getBoundingClientRect().width : 0;
     spacer.style.width = (fixedWidth + resizerWidth) + "px";
-    inner.style.width = Math.max(scrollEl.scrollWidth, scrollEl.clientWidth) + "px";
-    let syncing = false;
-    track.onscroll = () => {
-      if(syncing) return;
-      syncing = true; scrollEl.scrollLeft = track.scrollLeft; syncing = false;
-    };
-    scrollEl.onscroll = () => {
-      if(syncing) return;
-      syncing = true; track.scrollLeft = scrollEl.scrollLeft; syncing = false;
-    };
+    inner.style.width = Math.max(contentWidth, scrollEl.clientWidth) + "px";
+    linkScrollLeft(scrollEl, track);
   }
 
   /* ---------------- View: Übersicht ---------------- */
@@ -2962,12 +2983,14 @@
                   ${statusPill(x.release.status)}
                 </div>`).join("")}
             </div>
-            <div class="gantt-scroll" id="ovScroll">
-              <div class="gantt-month-row" id="ovMonths" style="height:56px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
-              ${schedules.map(x=>`
-                <div class="gantt-row" style="position:relative; width:${totalDays*dayWidth}px;">
-                  <div class="gantt-track" style="width:${totalDays*dayWidth}px;" data-bgtrack></div>
-                </div>`).join("")}
+            <div class="gantt-timeline">
+              <div class="gantt-month-row" id="ovMonths" style="height:56px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"><div class="gantt-month-row-inner" id="ovMonthsInner"></div></div>
+              <div class="gantt-scroll" id="ovScroll">
+                ${schedules.map(x=>`
+                  <div class="gantt-row" style="position:relative; width:${totalDays*dayWidth}px;">
+                    <div class="gantt-track" style="width:${totalDays*dayWidth}px;" data-bgtrack></div>
+                  </div>`).join("")}
+              </div>
             </div>
           </div>
           <div class="gantt-hscroll-dock">
@@ -2978,13 +3001,14 @@
       </div>`;
 
     const ovMonthsEl = document.getElementById("ovMonths");
+    const ovMonthsInnerEl = document.getElementById("ovMonthsInner");
     const ovScrollEl = document.getElementById("ovScroll");
-    buildMonthHeader(ovMonthsEl, rangeStart, totalDays, dayWidth);
-    paintHeaderDayTint(ovMonthsEl, rangeStart, totalDays, dayWidth);
-    buildDayLabelRow(ovMonthsEl, rangeStart, totalDays, dayWidth);
-    attachTimelineHover(ovMonthsEl, ovScrollEl, rangeStart, dayWidth, totalDays);
-    pinRowToScroll(ovMonthsEl.closest(".gantt-body"), ovMonthsEl);
-    setupHScrollDock(ovScrollEl, document.getElementById("ovFixed"), null, "ovHDockSpacer", "ovHDockTrack", "ovHDockInner");
+    buildMonthHeader(ovMonthsInnerEl, rangeStart, totalDays, dayWidth);
+    paintHeaderDayTint(ovMonthsInnerEl, rangeStart, totalDays, dayWidth);
+    buildDayLabelRow(ovMonthsInnerEl, rangeStart, totalDays, dayWidth);
+    attachTimelineHover(ovMonthsInnerEl, ovScrollEl, rangeStart, dayWidth, totalDays);
+    linkScrollLeft(ovScrollEl, ovMonthsEl);
+    setupHScrollDock(ovScrollEl, document.getElementById("ovFixed"), null, "ovHDockSpacer", "ovHDockTrack", "ovHDockInner", totalDays*dayWidth);
     ensureHolidayYearsLoaded([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
     const tracks = root.querySelectorAll("[data-bgtrack]");
     tracks.forEach((track, i) => {
@@ -3137,9 +3161,11 @@
             <div class="gantt-body">
               <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
               <div class="gantt-resizer" id="ganttColResizer" title="Breite der Schritt-Spalte ziehen"></div>
-              <div class="gantt-scroll" id="relScroll">
-                <div class="gantt-month-row" id="relMonths" style="height:56px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
-                <div id="relRowsHost"></div>
+              <div class="gantt-timeline">
+                <div class="gantt-month-row" id="relMonths" style="height:56px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"><div class="gantt-month-row-inner" id="relMonthsInner"></div></div>
+                <div class="gantt-scroll" id="relScroll">
+                  <div id="relRowsHost"></div>
+                </div>
               </div>
             </div>
             <div class="gantt-hscroll-dock">
@@ -3616,13 +3642,14 @@
     const dayWidth = state.dayWidth;
 
     const monthsEl = document.getElementById("relMonths");
+    const monthsInnerEl = document.getElementById("relMonthsInner");
     const scrollEl = document.getElementById("relScroll");
-    buildMonthHeader(monthsEl, rangeStart, totalDays, dayWidth);
-    paintHeaderDayTint(monthsEl, rangeStart, totalDays, dayWidth);
-    buildDayLabelRow(monthsEl, rangeStart, totalDays, dayWidth);
-    attachTimelineHover(monthsEl, scrollEl, rangeStart, dayWidth, totalDays);
-    pinRowToScroll(monthsEl.closest(".gantt-body"), monthsEl);
-    setupHScrollDock(scrollEl, fixed, document.getElementById("ganttColResizer"), "relHDockSpacer", "relHDockTrack", "relHDockInner");
+    buildMonthHeader(monthsInnerEl, rangeStart, totalDays, dayWidth);
+    paintHeaderDayTint(monthsInnerEl, rangeStart, totalDays, dayWidth);
+    buildDayLabelRow(monthsInnerEl, rangeStart, totalDays, dayWidth);
+    attachTimelineHover(monthsInnerEl, scrollEl, rangeStart, dayWidth, totalDays);
+    linkScrollLeft(scrollEl, monthsEl);
+    setupHScrollDock(scrollEl, fixed, document.getElementById("ganttColResizer"), "relHDockSpacer", "relHDockTrack", "relHDockInner", totalDays*dayWidth);
     ensureHolidayYearsLoaded([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
 
     const labeled = getLabeledTasks(release, sched);
@@ -3638,7 +3665,7 @@
       flag.textContent = m.label;
       flag.title = m.label + " · " + fmtDate(m.date) + " — Klicken, um zur Aufgabe zu springen";
       flag.onclick = () => highlightTaskInTable(m.id);
-      monthsEl.appendChild(flag);
+      monthsInnerEl.appendChild(flag);
     });
 
     release.tasks.forEach((t,i) => {
