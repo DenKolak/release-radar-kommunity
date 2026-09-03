@@ -41,9 +41,9 @@
     --warning-soft:#fdf1cf;
     --critical:#de3400;
     --critical-soft:#fbe4dc;
-    --holiday:#6461c9;
-    --holiday-soft:#eaeafb;
-    --weekend:#e9edf3;
+    --holiday:#7a3fd1;
+    --holiday-soft:#ecdffa;
+    --weekend:#cbd8e6;
     --today:#f0af00;
     --shadow: 0 1px 2px rgba(0,26,28,.06), 0 8px 24px -12px rgba(0,26,28,.2);
     --radius: 10px;
@@ -70,9 +70,9 @@
       --warning-soft:#3a2f12;
       --critical:#ff8a5c;
       --critical-soft:#3a1f14;
-      --holiday:#9d9aec;
-      --holiday-soft:#211f3a;
-      --weekend:#16211f;
+      --holiday:#b9a3f5;
+      --holiday-soft:#372a63;
+      --weekend:#24444b;
       --today:#f7c948;
       color-scheme: dark;
     }
@@ -97,9 +97,9 @@
     --warning-soft:#3a2f12;
     --critical:#ff8a5c;
     --critical-soft:#3a1f14;
-    --holiday:#9d9aec;
-    --holiday-soft:#211f3a;
-    --weekend:#16211f;
+    --holiday:#b9a3f5;
+    --holiday-soft:#372a63;
+    --weekend:#24444b;
     --today:#f7c948;
     color-scheme: dark;
   }
@@ -336,7 +336,26 @@
   .gantt-bg{ position:absolute; inset:0; }
   .gantt-day{ position:absolute; top:0; bottom:0; }
   .gantt-day.weekend{ background:var(--weekend); }
-  .gantt-day.holiday{ background:var(--holiday-soft); }
+  /* Feiertage bekommen zusätzlich zur Farbe ein Streifenmuster + farbige Seitenkanten, damit sie
+     sich auch in Graustufen-Ausdrucken oder für Personen mit Farbsehschwäche klar vom Wochenende
+     unterscheiden lassen (nicht nur über den Farbton). */
+  .gantt-day.holiday{
+    background:repeating-linear-gradient(135deg,
+      var(--holiday-soft), var(--holiday-soft) 7px,
+      color-mix(in srgb, var(--holiday-soft) 55%, var(--holiday) 45%) 7px,
+      color-mix(in srgb, var(--holiday-soft) 55%, var(--holiday) 45%) 14px);
+    border-left:2px solid var(--holiday); border-right:2px solid var(--holiday);
+  }
+  /* Kennzeichnung direkt in der Zeitachsen-Kopfzeile (Monatsraster): dieselben Wochenend-/Feiertags-
+     Spalten wie in den Zeilen darunter, plus ein farbiger Balken am unteren Rand der Kopfzeile, der
+     wie eine kleine Markierung "in der Achse selbst" wirkt, auch wenn man nicht bis zu den Balken
+     hinunterschaut. Wird per JS (paintHeaderDayTint) unter die Monats-Labels eingefügt. */
+  .gantt-day.header.weekend::after,
+  .gantt-day.header.holiday::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:3px;
+  }
+  .gantt-day.header.weekend::after{ background:var(--border-strong); }
+  .gantt-day.header.holiday::after{ background:var(--holiday); }
   .gantt-todayline{ position:absolute; top:0; bottom:0; width:2px; background:var(--today); z-index:5; }
   .gantt-bar{
     position:absolute; top:7px; height:20px; border-radius:5px; background:var(--accent);
@@ -2645,6 +2664,28 @@
       container.appendChild(line);
     }
   }
+  // Färbt Wochenend-/Feiertagsspalten zusätzlich direkt in der Monats-/Zeitachsen-Kopfzeile ein —
+  // dieselbe Kennzeichnung wie unter den Aufgabenbalken, aber sichtbar "in der Achse selbst", auch
+  // ohne auf die Zeilen darunter zu schauen. Muss NACH buildMonthHeader() aufgerufen werden (das den
+  // Container per innerHTML="" leert) und fügt die Farbflächen per insertBefore als erste Kind-
+  // Elemente ein, damit sie unter den Monats-Labels liegen (Malreihenfolge = DOM-Reihenfolge, da
+  // weder Label noch Tagesfläche einen widersprechenden z-index setzen).
+  function paintHeaderDayTint(container, fromDate, totalDays, dayWidth){
+    const frag = document.createDocumentFragment();
+    for(let i=0;i<totalDays;i++){
+      const d = addDays(fromDate, i);
+      const hol = holidayName(d);
+      if(isWeekend(d) || hol){
+        const seg = document.createElement("div");
+        seg.className = "gantt-day header " + (hol ? "holiday" : "weekend");
+        seg.style.left = (i*dayWidth)+"px";
+        seg.style.width = dayWidth+"px";
+        if(hol){ seg.title = hol; }
+        frag.appendChild(seg);
+      }
+    }
+    container.insertBefore(frag, container.firstChild);
+  }
   // Spiegelt die Breite von .gantt-fixed/.gantt-fixed-lg aus den CSS-Breakpoints (siehe
   // <style>-Block) — wird gebraucht, um die "volle Breite ohne Scrollen"-Berechnung der
   // Übersichts-Zeitachse an die tatsächlich sichtbare Spaltenbreite anzupassen (sonst wird
@@ -2814,6 +2855,7 @@
     const ovMonthsEl = document.getElementById("ovMonths");
     const ovScrollEl = document.getElementById("ovScroll");
     buildMonthHeader(ovMonthsEl, rangeStart, totalDays, dayWidth);
+    paintHeaderDayTint(ovMonthsEl, rangeStart, totalDays, dayWidth);
     attachTimelineHover(ovMonthsEl, ovScrollEl, rangeStart, dayWidth, totalDays);
     pinRowToScroll(ovMonthsEl.closest(".gantt-wrap"), ovMonthsEl);
     ensureHolidayYearsLoaded([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
@@ -3443,6 +3485,7 @@
     const monthsEl = document.getElementById("relMonths");
     const scrollEl = document.getElementById("relScroll");
     buildMonthHeader(monthsEl, rangeStart, totalDays, dayWidth);
+    paintHeaderDayTint(monthsEl, rangeStart, totalDays, dayWidth);
     attachTimelineHover(monthsEl, scrollEl, rangeStart, dayWidth, totalDays);
     pinRowToScroll(monthsEl.closest(".gantt-wrap"), monthsEl);
     ensureHolidayYearsLoaded([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
