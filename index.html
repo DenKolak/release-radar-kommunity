@@ -295,11 +295,19 @@
   .progress > i{ display:block; height:100%; background:var(--success); border-radius:99px; }
 
   /* ---------- gantt ---------- */
+  /* .gantt-wrap ist jetzt NUR noch die äußere Box (Höhe/Resize-Rahmen), das eigentliche vertikale
+     Scrollen von Namensspalte + Zeitachse übernimmt die neue ".gantt-body" darin. Grund: ganz unten
+     in .gantt-wrap sitzt zusätzlich ".gantt-hscroll-dock" — ein schlanker, IMMER sichtbarer
+     horizontaler Schieberegler (siehe weiter unten) —, der bewusst AUSSERHALB des vertikal
+     scrollenden Bereichs liegt, damit man ihn nicht erst durch Herunterscrollen aller Zeilen
+     erreichen muss (das war vorher das Problem: der native Scrollbalken der Zeitachse klebte am
+     Ende der vollen Zeilenhöhe, oft weit unterhalb des sichtbaren Fensters). */
   .gantt-wrap{
-    display:flex; align-items:flex-start; border-top:1px solid var(--border);
-    height:min(560px, 65vh); min-height:180px; max-height:88vh; overflow-y:auto;
+    display:flex; flex-direction:column; border-top:1px solid var(--border);
+    height:min(560px, 65vh); min-height:180px; max-height:88vh; overflow:hidden;
     resize:vertical;
   }
+  .gantt-body{ display:flex; align-items:flex-start; flex:1 1 auto; min-height:0; overflow-y:auto; }
   .gantt-fixed{
     width:280px; flex:none; border-right:1px solid var(--border); background:var(--bg-elevated);
   }
@@ -312,7 +320,29 @@
     content:""; position:absolute; top:0; bottom:0; left:3px; width:1px; background:var(--border-strong);
   }
   .gantt-resizer:hover::after, .gantt-resizer.dragging::after{ background:var(--accent); width:2px; left:2.5px; }
-  .gantt-scroll{ flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; position:relative; }
+  /* Der native horizontale Scrollbalken der Zeitachse wird ausgeblendet — die Bedienung erfolgt
+     stattdessen über den immer sichtbaren ".gantt-hscroll-dock" darunter (siehe dort). Mausrad-
+     Scrollen, Touch-Wischen und Tastatur funktionieren weiterhin ganz normal, nur der optische,
+     an dieser Stelle unerreichbare Balken verschwindet. */
+  .gantt-scroll{
+    flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; position:relative;
+    scrollbar-width:none; -ms-overflow-style:none;
+  }
+  .gantt-scroll::-webkit-scrollbar{ display:none; }
+  /* Immer sichtbarer horizontaler Schieberegler am unteren Rand des Fensters — bewusst als
+     eigener, schlanker Scroll-Bereich AUSSERHALB von .gantt-body (siehe Kommentar oben), damit er
+     unabhängig vom vertikalen Scroll-Stand ständig erreichbar bleibt, genau wie der native
+     Scrollbalken der Aufgabentabelle (dort gibt es nur einen einzigen Scroll-Container, dessen
+     Balken deshalb automatisch am unteren Fensterrand liegt). ".gantt-hscroll-spacer" hält dabei
+     exakt die Breite der Namensspalte (+ Ziehgriff) frei, damit der Regler bündig unter der
+     Zeitachse beginnt statt unter der Namensspalte.
+     */
+  .gantt-hscroll-dock{
+    flex:none; display:flex; height:15px; border-top:1px solid var(--border); background:var(--bg-sunken);
+  }
+  .gantt-hscroll-spacer{ flex:none; border-right:1px solid var(--border); }
+  .gantt-hscroll-track{ flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; }
+  .gantt-hscroll-track-inner{ height:1px; }
   .gantt-hoverline{
     position:absolute; top:0; bottom:0; width:1px; background:var(--accent);
     opacity:.6; pointer-events:none; z-index:6; display:none;
@@ -329,7 +359,7 @@
     0%{ background:var(--accent-soft); }
     100%{ background:transparent; }
   }
-  .gantt-row.head{ height:40px; background:var(--bg-sunken); font-weight:700; font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; position:sticky; top:0; z-index:3; }
+  .gantt-row.head{ height:56px; background:var(--bg-sunken); font-weight:700; font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; position:sticky; top:0; z-index:3; align-items:flex-start; padding-top:5px; }
   .gantt-row.today-row{ background: color-mix(in srgb, var(--today) 6%, transparent); }
   .gantt-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
   .gantt-track{ position:relative; height:100%; }
@@ -370,11 +400,25 @@
   .gantt-bar.overview.status-active{ background:var(--accent); }
   .gantt-bar.overview.status-open{ background:var(--ink-faint); }
   .gantt-month-row{ position:relative; z-index:2; will-change:transform; cursor:crosshair; }
+  /* Monatsname sitzt jetzt am OBEREN Rand der (höheren) Kopfzeile, darunter folgt pro Tag eine
+     kleine Wochentag+Tagesnummer-Beschriftung (siehe .gantt-daylabel) — macht die Achse deutlich
+     lesbarer als nur "Okt 2026" etc. */
   .gantt-month-label{
-    position:absolute; top:0; bottom:0; display:flex; align-items:center;
+    position:absolute; top:0; bottom:0; display:flex; align-items:flex-start; padding-top:5px;
     padding-left:6px; font-size:11px; font-weight:700; color:var(--ink-soft);
     border-left:1px solid var(--border-strong);
   }
+  /* Tagesbeschriftung unterhalb des Monatsnamens — wird nur bei ausreichend breiter Tagesspalte
+     erzeugt (siehe buildDayLabelRow(), dayWidth < 16 → keine Beschriftung, v. a. Übersicht bei
+     vielen gleichzeitig sichtbaren Monaten). "Heute" wird farblich hervorgehoben. */
+  .gantt-daylabel{
+    position:absolute; top:22px; bottom:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; font-size:9px; line-height:1.25;
+    color:var(--ink-faint); pointer-events:none;
+  }
+  .gantt-daylabel .dow{ text-transform:uppercase; letter-spacing:.02em; }
+  .gantt-daylabel .dom{ font-size:11px; font-weight:700; color:var(--ink-soft); }
+  .gantt-daylabel.today .dow, .gantt-daylabel.today .dom{ color:var(--today); }
   .gantt-milestoneline{ position:absolute; top:0; bottom:0; width:0; border-left:2px dashed var(--warning); z-index:4; }
   .gantt-milestone-flag{
     position:absolute; top:-1px; transform:translateX(-50%);
@@ -2086,10 +2130,10 @@
   function toISO(d){ return dkey(d); }
   function addDays(d, n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
   function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+  const WEEKDAY_SHORT = ["So","Mo","Di","Mi","Do","Fr","Sa"];
   function fmtDate(d){
     if(!d) return "–";
-    const wd = ["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()];
-    return wd+", "+String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+"."+d.getFullYear();
+    return WEEKDAY_SHORT[d.getDay()]+", "+String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+"."+d.getFullYear();
   }
   function fmtDateShort(d){
     if(!d) return "–";
@@ -2686,6 +2730,26 @@
     }
     container.insertBefore(frag, container.firstChild);
   }
+  // Zusätzliche Tagesbeschriftung (Wochentag + Tagesnummer) unterhalb der Monatsnamen in der
+  // Zeitachsen-Kopfzeile — macht die Achse deutlich lesbarer als nur "Okt 2026" etc., besonders
+  // beim Ablaufplan mit fester, ausreichend breiter Tagesbreite. Wird bewusst übersprungen, wenn
+  // die Tagesbreite zu schmal ist (v. a. in der Übersicht bei vielen Monaten gleichzeitig), damit
+  // die Beschriftung nicht zu unlesbarem Gedränge wird — dort bleibt die reine Monats-/Farbansicht.
+  function buildDayLabelRow(container, fromDate, totalDays, dayWidth){
+    if(dayWidth < 16) return;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const frag = document.createDocumentFragment();
+    for(let i=0;i<totalDays;i++){
+      const d = addDays(fromDate, i);
+      const cell = document.createElement("div");
+      cell.className = "gantt-daylabel" + (sameDay(d, today) ? " today" : "");
+      cell.style.left = (i*dayWidth)+"px";
+      cell.style.width = dayWidth+"px";
+      cell.innerHTML = `<span class="dow">${WEEKDAY_SHORT[d.getDay()]}</span><span class="dom">${d.getDate()}</span>`;
+      frag.appendChild(cell);
+    }
+    container.appendChild(frag);
+  }
   // Spiegelt die Breite von .gantt-fixed/.gantt-fixed-lg aus den CSS-Breakpoints (siehe
   // <style>-Block) — wird gebraucht, um die "volle Breite ohne Scrollen"-Berechnung der
   // Übersichts-Zeitachse an die tatsächlich sichtbare Spaltenbreite anzupassen (sonst wird
@@ -2727,7 +2791,12 @@
   // overflow-x:auto) verschachtelt ist, der als eigener Sticky-Bezugsrahmen dazwischenfunkt.
   function pinRowToScroll(wrapEl, rowEl){
     if(!wrapEl || !rowEl) return;
-    const onScroll = () => { rowEl.style.transform = wrapEl.scrollTop ? `translateY(${wrapEl.scrollTop}px)` : ""; };
+    // Math.round: eine gebrochene Verschiebung (z. B. bei nicht-ganzzahligem Scroll-Stand) würde die
+    // Kopfzeile auf eine eigene Compositing-Ebene mit eigener Subpixel-Rundung heben, wodurch ihre
+    // Wochenend-/Feiertagsfärbung minimal anders einrasten kann als die der Zeilen darunter (siehe
+    // Kommentar bei der Berechnung von "dayWidth" in renderOverview) — ganzzahlig verschieben
+    // vermeidet diesen Effekt zusätzlich zur ganzzahligen Tagesbreite.
+    const onScroll = () => { const t = Math.round(wrapEl.scrollTop); rowEl.style.transform = t ? `translateY(${t}px)` : ""; };
     wrapEl.addEventListener("scroll", onScroll);
     onScroll();
   }
@@ -2748,19 +2817,64 @@
       scrollEl.appendChild(line);
     }
     const onMove = (e) => {
+      const scrollRect = scrollEl.getBoundingClientRect();
+      line.style.left = (e.clientX - scrollRect.left + scrollEl.scrollLeft) + "px";
+      line.style.display = "block";
+      // Balken (Aufgabe/Release) haben ihre eigene Detail-Tooltip (siehe renderReleaseGantt/
+      // renderOverview) — die reine Datums-Tooltip der Zeitachse darf sie nicht überschreiben.
+      // Dieser mousemove-Listener sitzt am umschließenden Scroll-Container und feuert nach dem
+      // eigenen mousemove-Listener des Balkens (Bubbling); ohne diese Prüfung würde er dessen
+      // showTip()-Aufruf sofort wieder mit dem bloßen Datum überschreiben. Die senkrechte
+      // Hover-Linie bleibt bewusst auch über Balken sichtbar (zeigt weiterhin die genaue Tagesspalte).
+      if(e.target.closest(".gantt-bar")) return;
       const rect = rowEl.getBoundingClientRect();
       let dayIdx = Math.floor((e.clientX - rect.left) / dayWidth);
       dayIdx = Math.max(0, Math.min(totalDays - 1, dayIdx));
       showTip(`<b>${fmtDate(addDays(rangeStart, dayIdx))}</b>`, e.clientX, e.clientY);
-      const scrollRect = scrollEl.getBoundingClientRect();
-      line.style.left = (e.clientX - scrollRect.left + scrollEl.scrollLeft) + "px";
-      line.style.display = "block";
     };
     const onLeave = () => { hideTip(); line.style.display = "none"; };
     rowEl.addEventListener("mousemove", onMove);
     rowEl.addEventListener("mouseleave", onLeave);
     scrollEl.addEventListener("mousemove", onMove);
     scrollEl.addEventListener("mouseleave", onLeave);
+  }
+
+  // Immer sichtbarer horizontaler Schieberegler am unteren Rand des Ablaufplan-/Übersichts-Fensters
+  // (".gantt-hscroll-dock", siehe CSS) — analog zur Aufgabentabelle, bei der der native Scrollbalken
+  // bereits am unteren Fensterrand klebt, weil dort NUR EIN Scroll-Container (.task-table-scroll)
+  // existiert. Beim Ablaufplan gibt es dagegen zwei verschachtelte Scroll-Bereiche (die Zeitachse
+  // ".gantt-scroll" scrollt horizontal, aber ihre Höhe wächst mit allen Zeilen — ihr eigener
+  // nativer Scrollbalken liegt daher ganz unten am Ende der Zeilen, oft weit außerhalb des
+  // sichtbaren Fensters). Diese Funktion baut daher einen ZWEITEN, schlanken Scroll-Bereich
+  // (".gantt-hscroll-track") außerhalb des vertikal scrollenden Bereichs aus fest sichtbaren
+  // Balken/Zeilen — er bleibt dadurch immer am unteren Rand des Fensters stehen — und hält dessen
+  // Scroll-Position bidirektional mit der eigentlichen Zeitachse synchron. Die eigentliche
+  // Zeitachse behält ihre native Scrollbarkeit (Mausrad, Touch, Tastatur) unverändert; nur ihr
+  // sichtbarer Scrollbalken wird per CSS ausgeblendet (siehe .gantt-scroll{ scrollbar-width:none })
+  // zugunsten des einen, immer erreichbaren Reglers hier unten.
+  // scrollEl: die eigentliche horizontal scrollende Zeitachse (#relScroll/#ovScroll).
+  // fixedEl: die feste Namens-/Release-Spalte daneben (#relFixed/#ovFixed) — bestimmt die Breite
+  //          des Platzhalters vor dem Regler, damit dieser bündig unter der Zeitachse beginnt.
+  // resizerEl: optionaler Ziehgriff zwischen Namensspalte und Zeitachse (nur im Ablaufplan,
+  //            #ganttColResizer) — dessen Breite zählt beim Platzhalter mit.
+  function setupHScrollDock(scrollEl, fixedEl, resizerEl, spacerId, trackId, innerId){
+    const spacer = document.getElementById(spacerId);
+    const track = document.getElementById(trackId);
+    const inner = document.getElementById(innerId);
+    if(!scrollEl || !spacer || !track || !inner) return;
+    const fixedWidth = fixedEl ? fixedEl.getBoundingClientRect().width : 0;
+    const resizerWidth = resizerEl ? resizerEl.getBoundingClientRect().width : 0;
+    spacer.style.width = (fixedWidth + resizerWidth) + "px";
+    inner.style.width = Math.max(scrollEl.scrollWidth, scrollEl.clientWidth) + "px";
+    let syncing = false;
+    track.onscroll = () => {
+      if(syncing) return;
+      syncing = true; scrollEl.scrollLeft = track.scrollLeft; syncing = false;
+    };
+    scrollEl.onscroll = () => {
+      if(syncing) return;
+      syncing = true; track.scrollLeft = scrollEl.scrollLeft; syncing = false;
+    };
   }
 
   /* ---------------- View: Übersicht ---------------- */
@@ -2796,7 +2910,12 @@
     const totalDays = Math.max(1, Math.round((rangeEnd - rangeStart)/MS_DAY));
     // Übersicht zeigt den kompletten Zeitraum ohne Scrollen: Tagesbreite an verfügbare Breite anpassen
     const availableWidth = Math.max(150, document.querySelector(".main").clientWidth - ganttFixedWidth() - 56 - 20);
-    const dayWidth = Math.max(2.2, Math.min(22, availableWidth / totalDays));
+    // Auf ganze Pixel runden: eine gebrochene Tagesbreite (z. B. 5.33px) führte dazu, dass die
+    // Wochenend-/Feiertagsfärbung der Kopfzeile (auf einer eigenen, per transform verschobenen
+    // Compositing-Ebene, siehe pinRowToScroll) minimal anders gerundet wurde als die der Zeilen
+    // darunter (keine eigene Ebene) — das ergab den gemeldeten "versetzten" Look. Mit einer
+    // ganzzahligen Tagesbreite verschwindet dieser Rundungsunterschied zwischen den Ebenen.
+    const dayWidth = Math.max(3, Math.round(Math.max(2.2, Math.min(22, availableWidth / totalDays))));
 
     const cardsHtml = `
       <div class="cards">
@@ -2834,20 +2953,26 @@
           </div>
         </div>
         <div class="gantt-wrap">
-          <div class="gantt-fixed">
-            <div class="gantt-row head">Release</div>
-            ${schedules.map(x=>`<div class="gantt-row" data-rel="${x.release.id}" style="cursor:pointer;">
-                <span class="nav-dot" style="background:${statusMeta(x.release.status).dot};"></span>
-                <span class="gantt-name">${esc(x.release.name)}</span>
-                ${statusPill(x.release.status)}
-              </div>`).join("")}
+          <div class="gantt-body">
+            <div class="gantt-fixed" id="ovFixed">
+              <div class="gantt-row head">Release</div>
+              ${schedules.map(x=>`<div class="gantt-row" data-rel="${x.release.id}" style="cursor:pointer;">
+                  <span class="nav-dot" style="background:${statusMeta(x.release.status).dot};"></span>
+                  <span class="gantt-name">${esc(x.release.name)}</span>
+                  ${statusPill(x.release.status)}
+                </div>`).join("")}
+            </div>
+            <div class="gantt-scroll" id="ovScroll">
+              <div class="gantt-month-row" id="ovMonths" style="height:56px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
+              ${schedules.map(x=>`
+                <div class="gantt-row" style="position:relative; width:${totalDays*dayWidth}px;">
+                  <div class="gantt-track" style="width:${totalDays*dayWidth}px;" data-bgtrack></div>
+                </div>`).join("")}
+            </div>
           </div>
-          <div class="gantt-scroll" id="ovScroll">
-            <div class="gantt-month-row" id="ovMonths" style="height:40px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
-            ${schedules.map(x=>`
-              <div class="gantt-row" style="position:relative; width:${totalDays*dayWidth}px;">
-                <div class="gantt-track" style="width:${totalDays*dayWidth}px;" data-bgtrack></div>
-              </div>`).join("")}
+          <div class="gantt-hscroll-dock">
+            <div class="gantt-hscroll-spacer" id="ovHDockSpacer"></div>
+            <div class="gantt-hscroll-track" id="ovHDockTrack"><div class="gantt-hscroll-track-inner" id="ovHDockInner"></div></div>
           </div>
         </div>
       </div>`;
@@ -2856,8 +2981,10 @@
     const ovScrollEl = document.getElementById("ovScroll");
     buildMonthHeader(ovMonthsEl, rangeStart, totalDays, dayWidth);
     paintHeaderDayTint(ovMonthsEl, rangeStart, totalDays, dayWidth);
+    buildDayLabelRow(ovMonthsEl, rangeStart, totalDays, dayWidth);
     attachTimelineHover(ovMonthsEl, ovScrollEl, rangeStart, dayWidth, totalDays);
-    pinRowToScroll(ovMonthsEl.closest(".gantt-wrap"), ovMonthsEl);
+    pinRowToScroll(ovMonthsEl.closest(".gantt-body"), ovMonthsEl);
+    setupHScrollDock(ovScrollEl, document.getElementById("ovFixed"), null, "ovHDockSpacer", "ovHDockTrack", "ovHDockInner");
     ensureHolidayYearsLoaded([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
     const tracks = root.querySelectorAll("[data-bgtrack]");
     tracks.forEach((track, i) => {
@@ -3003,15 +3130,21 @@
               <span><span class="legend-swatch" style="background:var(--today)"></span>Heute</span>
               <span><span class="legend-swatch" style="border:2px dashed var(--warning); background:transparent;"></span>Label</span>
             </div>
-            <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle — der farbige Punkt vor dem Aufgabennamen zeigt den Status (grau = offen, orange = in Arbeit, grün = erledigt, rot = blockiert). Die Spalte „Schritt" lässt sich am Griff rechts daneben in der Breite ziehen, das Panel selbst an der Ecke unten rechts.</span>
+            <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle — der farbige Punkt vor dem Aufgabennamen zeigt den Status (grau = offen, orange = in Arbeit, grün = erledigt, rot = blockiert). Die Spalte „Schritt" lässt sich am Griff rechts daneben in der Breite ziehen, das Panel selbst an der Ecke unten rechts. Der Schieberegler unten am Fenster scrollt die Zeitachse horizontal, ohne dass man erst nach unten scrollen muss.</span>
             <button type="button" class="btn btn-ghost btn-sm panel-maximize-btn" id="btnMaximizeGantt" title="${maximizedPanel==="gantt" ? "Vollbild schließen" : "Ablaufplan im Vollbild anzeigen"}">${maximizedPanel==="gantt" ? "Schließen" : "Vollbild"}</button>
           </div>
           <div class="gantt-wrap">
-            <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
-            <div class="gantt-resizer" id="ganttColResizer" title="Breite der Schritt-Spalte ziehen"></div>
-            <div class="gantt-scroll" id="relScroll">
-              <div class="gantt-month-row" id="relMonths" style="height:40px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
-              <div id="relRowsHost"></div>
+            <div class="gantt-body">
+              <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
+              <div class="gantt-resizer" id="ganttColResizer" title="Breite der Schritt-Spalte ziehen"></div>
+              <div class="gantt-scroll" id="relScroll">
+                <div class="gantt-month-row" id="relMonths" style="height:56px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
+                <div id="relRowsHost"></div>
+              </div>
+            </div>
+            <div class="gantt-hscroll-dock">
+              <div class="gantt-hscroll-spacer" id="relHDockSpacer"></div>
+              <div class="gantt-hscroll-track" id="relHDockTrack"><div class="gantt-hscroll-track-inner" id="relHDockInner"></div></div>
             </div>
           </div>
         </div>
@@ -3073,10 +3206,10 @@
       // vertikal zum ersten offenen Schritt scrollen, damit der aktuelle Stand sofort sichtbar ist
       const firstOpenIdx = release.tasks.findIndex(t => !t.done);
       if(firstOpenIdx > 0){
-        const wrap = document.querySelector(".gantt-wrap");
+        const body = document.querySelector(".gantt-body");
         const rows = document.querySelectorAll("#relFixed .gantt-row:not(.head)");
-        if(wrap && rows[firstOpenIdx]){
-          wrap.scrollTop = Math.max(0, rows[firstOpenIdx].offsetTop - 80);
+        if(body && rows[firstOpenIdx]){
+          body.scrollTop = Math.max(0, rows[firstOpenIdx].offsetTop - 80);
         }
       }
     }
@@ -3163,7 +3296,7 @@
     if(!el) return;
     el.classList.remove("row-flash"); void el.offsetWidth; // Reflow erzwingen, damit die Animation bei wiederholtem Klick neu startet
     el.classList.add("row-flash");
-    const scrollParent = container || el.closest(".task-table-scroll, .gantt-wrap");
+    const scrollParent = container || el.closest(".task-table-scroll, .gantt-body");
     if(scrollParent){
       const elRect = el.getBoundingClientRect(), parentRect = scrollParent.getBoundingClientRect();
       if(elRect.top < parentRect.top || elRect.bottom > parentRect.bottom){
@@ -3178,7 +3311,7 @@
   function highlightTaskInGantt(taskId){
     const row = document.querySelector(`#relRowsHost .gantt-row[data-task-id="${cssEsc(taskId)}"]`);
     const nameRow = document.querySelector(`#relFixed .gantt-row[data-task-id="${cssEsc(taskId)}"]`);
-    flashAndScrollTo(row, document.querySelector(".gantt-wrap"));
+    flashAndScrollTo(row, document.querySelector(".gantt-body"));
     if(nameRow) nameRow.classList.add("row-flash");
     if(nameRow) setTimeout(() => nameRow.classList.remove("row-flash"), 1400);
   }
@@ -3486,8 +3619,10 @@
     const scrollEl = document.getElementById("relScroll");
     buildMonthHeader(monthsEl, rangeStart, totalDays, dayWidth);
     paintHeaderDayTint(monthsEl, rangeStart, totalDays, dayWidth);
+    buildDayLabelRow(monthsEl, rangeStart, totalDays, dayWidth);
     attachTimelineHover(monthsEl, scrollEl, rangeStart, dayWidth, totalDays);
-    pinRowToScroll(monthsEl.closest(".gantt-wrap"), monthsEl);
+    pinRowToScroll(monthsEl.closest(".gantt-body"), monthsEl);
+    setupHScrollDock(scrollEl, fixed, document.getElementById("ganttColResizer"), "relHDockSpacer", "relHDockTrack", "relHDockInner");
     ensureHolidayYearsLoaded([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
 
     const labeled = getLabeledTasks(release, sched);
@@ -3581,21 +3716,21 @@
      erstmaligen Öffnen eines Release von einer bloßen Neuzeichnung unterscheidet. */
   let lastRenderedViewId = null;
   function captureViewScrollState(){
-    const ganttWrap = document.querySelector(".gantt-wrap");
+    const ganttBody = document.querySelector(".gantt-body");
     const taskScroll = document.querySelector(".task-table-scroll");
     const relScroll = document.getElementById("relScroll") || document.getElementById("ovScroll");
     return {
-      ganttScrollTop: ganttWrap ? ganttWrap.scrollTop : null,
+      ganttScrollTop: ganttBody ? ganttBody.scrollTop : null,
       taskScrollTop: taskScroll ? taskScroll.scrollTop : null,
       relScrollLeft: relScroll ? relScroll.scrollLeft : null
     };
   }
   function restoreViewScrollState(snap){
     if(!snap) return;
-    const ganttWrap = document.querySelector(".gantt-wrap");
+    const ganttBody = document.querySelector(".gantt-body");
     const taskScroll = document.querySelector(".task-table-scroll");
     const relScroll = document.getElementById("relScroll") || document.getElementById("ovScroll");
-    if(ganttWrap && snap.ganttScrollTop != null) ganttWrap.scrollTop = snap.ganttScrollTop;
+    if(ganttBody && snap.ganttScrollTop != null) ganttBody.scrollTop = snap.ganttScrollTop;
     if(taskScroll && snap.taskScrollTop != null) taskScroll.scrollTop = snap.taskScrollTop;
     if(relScroll && snap.relScrollLeft != null) relScroll.scrollLeft = snap.relScrollLeft;
   }
@@ -3659,9 +3794,13 @@
       resizer.classList.add("dragging");
       const startX = e.clientX;
       const startWidth = fixed.getBoundingClientRect().width;
+      const dockSpacer = document.getElementById("relHDockSpacer");
       const onMove = (ev) => {
         const newWidth = Math.max(160, Math.min(640, startWidth + (ev.clientX - startX)));
         fixed.style.width = newWidth + "px";
+        // hält den unteren, immer sichtbaren Zeitachsen-Schieberegler (siehe setupHScrollDock)
+        // während des Ziehens bündig zur Namensspalte ausgerichtet
+        if(dockSpacer) dockSpacer.style.width = (newWidth + resizer.getBoundingClientRect().width) + "px";
       };
       const onUp = () => {
         resizer.classList.remove("dragging");
