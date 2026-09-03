@@ -303,7 +303,15 @@
   .gantt-fixed{
     width:280px; flex:none; border-right:1px solid var(--border); background:var(--bg-elevated);
   }
-  .gantt-fixed-lg{ width:320px; } /* Release-Ablaufplan: etwas breiter für längere Schrittnamen */
+  .gantt-fixed-lg{ width:320px; } /* Release-Ablaufplan: etwas breiter für längere Schrittnamen — per Ziehgriff verstellbar, siehe .gantt-resizer */
+  .gantt-resizer{
+    flex:none; align-self:stretch; width:7px; margin:0 -4px; cursor:col-resize; position:relative;
+    z-index:2; background:transparent;
+  }
+  .gantt-resizer::after{
+    content:""; position:absolute; top:0; bottom:0; left:3px; width:1px; background:var(--border-strong);
+  }
+  .gantt-resizer:hover::after, .gantt-resizer.dragging::after{ background:var(--accent); width:2px; left:2.5px; }
   .gantt-scroll{ flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; position:relative; }
   .gantt-hoverline{
     position:absolute; top:0; bottom:0; width:1px; background:var(--accent);
@@ -439,13 +447,34 @@
   .label-input::placeholder{ color:var(--ink-faint); }
   .task-add-row{ display:flex; justify-content:flex-start; padding:10px 18px; border-bottom:1px solid var(--border); }
 
-  /* ---------- Ablaufplan + Aufgabentabelle nebeneinander (ab ausreichender Breite) ---------- */
+  /* ---------- Ablaufplan + Aufgabentabelle nebeneinander (ab ausreichender Breite) ----------
+     Unterhalb von 1180px stehen beide Panels untereinander (volle Breite) — dort lässt sich nur
+     die Höhe der jeweiligen Scroll-Fläche ziehen (ein Breiten-Resize ergäbe bei voller Breite ohne
+     Nachbar-Panel keinen Sinn). Ab 1180px liegen beide nebeneinander; dort ist stattdessen das
+     GANZE Panel (Kopf + Inhalt) per Ziehgriff an der Ecke nach jeder Richtung verstellbar — die
+     Restbreite der Zeile geht dabei automatisch an das jeweils andere Panel.
+     WICHTIG: hierfür ist flex:0 0 auto (statt flex:1 1 50%) nötig — mit einem festen Flex-Basis-
+     Prozentsatz (1 1 50%) würde der native CSS-resize-Griff zwar die "width" per Inline-Style
+     setzen, aber die Flexbox würde weiterhin die Flex-Basis (50%) fürs Layout verwenden und die
+     gesetzte Breite schlicht ignorieren — der Größenzieher hätte optisch keine Wirkung gehabt.
+     Mit flex:0 0 auto + eigener Breite pro Panel greift die native resize-Breite direkt; der
+     JS-ResizeObserver (initReleasePanelResizeSync) gleicht die Breite des jeweils anderen Panels
+     passend zur Restbreite der Zeile nach. */
   .release-split{ display:flex; flex-direction:column; gap:16px; }
   @media (min-width: 1180px){
     .release-split{ flex-direction:row; align-items:flex-start; }
-    .release-split > .panel{ flex:1 1 50%; min-width:0; margin-bottom:0 !important; }
-    .release-split .gantt-wrap{ height:min(640px, 72vh); }
-    .release-split .task-table-scroll{ height:min(640px, 72vh); }
+    .release-split > .panel{
+      flex:0 0 auto; width:calc(50% - 8px); min-width:340px; max-width:100%; margin-bottom:0 !important;
+      height:min(640px, 72vh); min-height:280px; max-height:88vh;
+      display:flex; flex-direction:column; resize:both; overflow:hidden;
+    }
+    .release-split > .panel > .panel-head{ flex:none; }
+    .release-split > .panel > .panel-body{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+    .release-split > .panel > .gantt-wrap{ flex:1 1 auto; min-height:0; }
+    .release-split > .panel .gantt-wrap,
+    .release-split > .panel .task-table-scroll{ height:auto; max-height:none; resize:none; }
+    .release-split > .panel .task-table-scroll{ flex:1 1 auto; min-height:0; }
+    .release-split > .panel .task-table-toolbar{ flex:none; }
   }
   .task-table-scroll{
     overflow:auto; height:min(480px, 60vh); min-height:180px; max-height:88vh;
@@ -460,7 +489,8 @@
      restlichen Seite (mobile Navigations-Drawer bei Bedarf weiterhin darüber, z-index 60/80). */
   .panel.maximized{
     position:fixed; inset:0; z-index:45; margin:0 !important; border-radius:0;
-    display:flex; flex-direction:column; box-shadow:none;
+    width:auto !important; height:auto !important; max-width:none; max-height:none;
+    display:flex; flex-direction:column; box-shadow:none; resize:none;
   }
   .panel.maximized .panel-head{ flex:none; }
   .panel.maximized .panel-body{ flex:1 1 auto; display:flex; flex-direction:column; overflow:hidden; }
@@ -2919,7 +2949,7 @@
 
     root.innerHTML = cardsHtml + configHtml + overdueBannerHtml + `
       <div class="release-split">
-        <div class="panel${maximizedPanel==="gantt" ? " maximized" : ""}">
+        <div class="panel${maximizedPanel==="gantt" ? " maximized" : ""}" id="ganttPanel">
           <div class="panel-head">
             <h2>Ablaufplan</h2>
             <div class="legend">
@@ -2931,18 +2961,19 @@
               <span><span class="legend-swatch" style="background:var(--today)"></span>Heute</span>
               <span><span class="legend-swatch" style="border:2px dashed var(--warning); background:transparent;"></span>Label</span>
             </div>
-            <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle — der farbige Punkt vor dem Aufgabennamen zeigt den Status (grau = offen, orange = in Arbeit, grün = erledigt, rot = blockiert)</span>
+            <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle — der farbige Punkt vor dem Aufgabennamen zeigt den Status (grau = offen, orange = in Arbeit, grün = erledigt, rot = blockiert). Die Spalte „Schritt" lässt sich am Griff rechts daneben in der Breite ziehen, das Panel selbst an der Ecke unten rechts.</span>
             <button type="button" class="btn btn-ghost btn-sm panel-maximize-btn" id="btnMaximizeGantt" title="${maximizedPanel==="gantt" ? "Vollbild schließen" : "Ablaufplan im Vollbild anzeigen"}">${maximizedPanel==="gantt" ? "Schließen" : "Vollbild"}</button>
           </div>
           <div class="gantt-wrap">
             <div class="gantt-fixed gantt-fixed-lg" id="relFixed"></div>
+            <div class="gantt-resizer" id="ganttColResizer" title="Breite der Schritt-Spalte ziehen"></div>
             <div class="gantt-scroll" id="relScroll">
               <div class="gantt-month-row" id="relMonths" style="height:40px; border-bottom:1px solid var(--border); background:var(--bg-sunken);"></div>
               <div id="relRowsHost"></div>
             </div>
           </div>
         </div>
-        <div class="panel${maximizedPanel==="tasks" ? " maximized" : ""}">
+        <div class="panel${maximizedPanel==="tasks" ? " maximized" : ""}" id="tasksPanel">
           <div class="panel-head">
             <h2>Aufgaben bearbeiten</h2>
             <span class="hint">Dauer und ${esc(TASK_COL_LABELS.lag)} in Arbeitstagen (Mo–Fr, ohne Feiertage) — Klick auf eine Zeile springt zur Aufgabe im Ablaufplan</span>
@@ -2981,9 +3012,11 @@
     root.querySelector("#btnMaximizeGantt").onclick = () => toggleMaximizePanel("gantt");
     root.querySelector("#btnMaximizeTasks").onclick = () => toggleMaximizePanel("tasks");
 
-    applyPersistedPanelHeights();
+    applyPersistedPanelSizes();
     renderTaskTable(root.querySelector("#taskTable"), release);
     renderReleaseGantt(release, sched);
+    initGanttColumnResize();
+    initReleasePanelResizeSync();
     // Automatisches Anspringen von "Heute" bzw. dem ersten offenen Schritt nur beim ERSTEN Aufbau
     // dieser Ansicht (Release-Wechsel) — bei einer bloßen Neuzeichnung nach einer Bearbeitung
     // (Status ändern, Aufgabe verschieben, periodischer Sync-Abgleich …) bleibt die aktuelle
@@ -3529,33 +3562,127 @@
   // synchronisierten Daten) und wird bei jedem renderRelease()-Aufbau erneut angewendet, da
   // sonst der Vollbild-Modus bei der nächsten Bearbeitung sofort wieder verschwinden würde.
   let maximizedPanel = null; // null | "gantt" | "tasks"
+  let releasePanelResizeObserver = null; // ResizeObserver, das #ganttPanel/#tasksPanel beim nativen resize:both beobachtet
   function toggleMaximizePanel(which){
     maximizedPanel = (maximizedPanel === which) ? null : which;
     document.body.classList.toggle("panel-maximized-active", !!maximizedPanel);
     renderAll();
   }
 
-  // Größe von Ablaufplan/Aufgabentabelle (per Ziehen an der Ecke veränderbar, siehe CSS
-  // "resize:vertical") bleibt geräteweit erhalten, auch über einen Release-Wechsel oder einen
-  // Seiten-Neuladen hinweg — die tatsächliche Persistierung übernimmt ein einmalig registrierter
-  // mouseup-Listener (siehe initPanelResizePersistence()).
-  function applyPersistedPanelHeights(){
+  // Größe von Ablaufplan/Aufgabentabelle bleibt geräteweit erhalten, auch über einen
+  // Release-Wechsel oder einen Seiten-Neuladen hinweg. Ab 1180px (Panels stehen nebeneinander,
+  // siehe CSS) lässt sich dort das GANZE Panel per Ecke in beide Richtungen ziehen (Breite +
+  // Höhe) — darunter (Panels stehen untereinander in voller Breite) weiterhin nur die Höhe der
+  // jeweiligen Scroll-Fläche, da ein Breiten-Resize dort ohne Nachbar-Panel keinen Sinn ergäbe.
+  // Die tatsächliche Persistierung übernimmt ein einmalig registrierter mouseup-Listener
+  // (siehe initPanelResizePersistence()).
+  function isWideReleaseLayout(){
+    try{ return window.matchMedia("(min-width: 1180px)").matches; }catch(e){ return window.innerWidth >= 1180; }
+  }
+  function applyPersistedPanelSizes(){
     try{
-      const gh = localStorage.getItem("release-radar-gantt-height");
-      const ganttWrap = document.querySelector(".gantt-wrap");
-      if(gh && ganttWrap) ganttWrap.style.height = gh;
-      const th = localStorage.getItem("release-radar-tasktable-height");
-      const taskScroll = document.querySelector(".task-table-scroll");
-      if(th && taskScroll) taskScroll.style.height = th;
+      if(isWideReleaseLayout()){
+        const ganttPanel = document.getElementById("ganttPanel");
+        const tasksPanel = document.getElementById("tasksPanel");
+        const gw = localStorage.getItem("release-radar-gantt-panel-width");
+        const gh = localStorage.getItem("release-radar-gantt-panel-height");
+        if(ganttPanel){ if(gw) ganttPanel.style.width = gw; if(gh) ganttPanel.style.height = gh; }
+        const tw = localStorage.getItem("release-radar-tasks-panel-width");
+        const th = localStorage.getItem("release-radar-tasks-panel-height");
+        if(tasksPanel){ if(tw) tasksPanel.style.width = tw; if(th) tasksPanel.style.height = th; }
+      }else{
+        const gh = localStorage.getItem("release-radar-gantt-height");
+        const ganttWrap = document.querySelector(".gantt-wrap");
+        if(gh && ganttWrap) ganttWrap.style.height = gh;
+        const th = localStorage.getItem("release-radar-tasktable-height");
+        const taskScroll = document.querySelector(".task-table-scroll");
+        if(th && taskScroll) taskScroll.style.height = th;
+      }
+      const namecolWidth = localStorage.getItem("release-radar-gantt-namecol-width");
+      const relFixed = document.getElementById("relFixed");
+      if(namecolWidth && relFixed) relFixed.style.width = namecolWidth;
     }catch(e){}
+  }
+  // Ziehgriff zwischen Namensspalte ("Schritt") und Zeitachse — eigene, einfache Maus-Drag-Logik
+  // (kein natives CSS "resize", da hier ein Geschwister-Element verstellt wird, nicht die eigene
+  // Kante des Elements). Muss nach jedem renderReleaseGantt()-Aufbau neu verdrahtet werden, da
+  // #relFixed/#ganttColResizer bei jeder Neuzeichnung frisch erzeugt werden.
+  function initGanttColumnResize(){
+    const resizer = document.getElementById("ganttColResizer");
+    const fixed = document.getElementById("relFixed");
+    if(!resizer || !fixed) return;
+    resizer.onmousedown = (e) => {
+      e.preventDefault();
+      resizer.classList.add("dragging");
+      const startX = e.clientX;
+      const startWidth = fixed.getBoundingClientRect().width;
+      const onMove = (ev) => {
+        const newWidth = Math.max(160, Math.min(640, startWidth + (ev.clientX - startX)));
+        fixed.style.width = newWidth + "px";
+      };
+      const onUp = () => {
+        resizer.classList.remove("dragging");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        try{ localStorage.setItem("release-radar-gantt-namecol-width", fixed.style.width); }catch(e2){}
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    };
+  }
+  // Gleicht beim nativen "resize:both"-Ziehgriff eines Panels (Ablaufplan/Aufgabenliste) automatisch
+  // die Breite des jeweils ANDEREN Panels aus, sodass beide zusammen weiterhin die Zeilenbreite von
+  // .release-split ausfüllen. Notwendig, weil die Panels bewusst auf flex:0 0 auto + eigene "width"
+  // umgestellt wurden (siehe CSS-Kommentar zu .release-split > .panel) — mit einer festen Flex-Basis
+  // (früher flex:1 1 50%) hätte der native resize-Griff zwar die Inline-"width" gesetzt, die Flexbox
+  // hätte diese aber für die Zeilenbreite ignoriert und stattdessen weiter die Flex-Basis genutzt.
+  // Muss nach jedem renderRelease()-Aufbau neu verdrahtet werden, da #ganttPanel/#tasksPanel bei
+  // jeder Neuzeichnung frisch erzeugt werden (alte Observer werden vorher sauber getrennt).
+  function initReleasePanelResizeSync(){
+    if(releasePanelResizeObserver){ try{ releasePanelResizeObserver.disconnect(); }catch(e){} releasePanelResizeObserver = null; }
+    const split = document.querySelector(".release-split");
+    const ganttPanel = document.getElementById("ganttPanel");
+    const tasksPanel = document.getElementById("tasksPanel");
+    if(!split || !ganttPanel || !tasksPanel || typeof ResizeObserver === "undefined") return;
+    const GAP = 16; // muss zu .release-split{ gap:16px; } passen
+    const MIN_W = 340; // muss zu .release-split > .panel{ min-width:340px; } passen
+    const lastSetWidth = new Map(); // Element -> zuletzt von UNS per Sync gesetzte Breite (verhindert Rückkopplungsschleife)
+    function adjustSibling(resized, other){
+      if(!isWideReleaseLayout() || maximizedPanel) return; // im gestapelten Layout bzw. Vollbild kein Nebeneinander zum Ausgleichen
+      const containerWidth = split.getBoundingClientRect().width;
+      const resizedWidth = resized.getBoundingClientRect().width;
+      const prevSet = lastSetWidth.get(resized);
+      if(prevSet !== undefined && Math.abs(prevSet - resizedWidth) < 1) return; // das war unser eigener Sync-Schreibvorgang, keine Kettenreaktion nötig
+      let otherWidth = containerWidth - resizedWidth - GAP;
+      otherWidth = Math.max(MIN_W, Math.min(otherWidth, containerWidth - MIN_W - GAP));
+      lastSetWidth.set(other, otherWidth);
+      other.style.width = otherWidth + "px";
+    }
+    releasePanelResizeObserver = new ResizeObserver((entries) => {
+      for(const entry of entries){
+        if(entry.target === ganttPanel) adjustSibling(ganttPanel, tasksPanel);
+        else if(entry.target === tasksPanel) adjustSibling(tasksPanel, ganttPanel);
+      }
+    });
+    releasePanelResizeObserver.observe(ganttPanel);
+    releasePanelResizeObserver.observe(tasksPanel);
   }
   function initPanelResizePersistence(){
     document.addEventListener("mouseup", () => {
-      const ganttWrap = document.querySelector(".gantt-wrap");
-      const taskScroll = document.querySelector(".task-table-scroll");
       try{
-        if(ganttWrap && ganttWrap.style.height) localStorage.setItem("release-radar-gantt-height", ganttWrap.style.height);
-        if(taskScroll && taskScroll.style.height) localStorage.setItem("release-radar-tasktable-height", taskScroll.style.height);
+        if(isWideReleaseLayout()){
+          const ganttPanel = document.getElementById("ganttPanel");
+          const tasksPanel = document.getElementById("tasksPanel");
+          if(ganttPanel && ganttPanel.style.width) localStorage.setItem("release-radar-gantt-panel-width", ganttPanel.style.width);
+          if(ganttPanel && ganttPanel.style.height) localStorage.setItem("release-radar-gantt-panel-height", ganttPanel.style.height);
+          if(tasksPanel && tasksPanel.style.width) localStorage.setItem("release-radar-tasks-panel-width", tasksPanel.style.width);
+          if(tasksPanel && tasksPanel.style.height) localStorage.setItem("release-radar-tasks-panel-height", tasksPanel.style.height);
+        }else{
+          const ganttWrap = document.querySelector(".gantt-wrap");
+          const taskScroll = document.querySelector(".task-table-scroll");
+          if(ganttWrap && ganttWrap.style.height) localStorage.setItem("release-radar-gantt-height", ganttWrap.style.height);
+          if(taskScroll && taskScroll.style.height) localStorage.setItem("release-radar-tasktable-height", taskScroll.style.height);
+        }
       }catch(e){}
     });
     document.addEventListener("keydown", (e) => {
