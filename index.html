@@ -358,6 +358,13 @@
     padding:0 14px; gap:8px; font-size:12.5px;
   }
   .gantt-fixed .gantt-row{ padding:0 12px; }
+  /* WICHTIG: die Zeitachsen-Zeilen (".gantt-scroll .gantt-row", enthält nur ".gantt-track" mit den
+     absolut positionierten Tagesflächen) dürfen KEIN Padding haben — sie müssen bei x=0 exakt am
+     linken Rand beginnen, sonst verschieben sich alle Wochenend-/Feiertagsspalten und Balken um den
+     Padding-Betrag nach rechts gegenüber der Kopfzeile (".gantt-month-row-inner", die bewusst kein
+     Padding hat). Das war die eigentliche Ursache des gemeldeten "versetzt"-Problems: die generische
+     ".gantt-row"-Regel mit padding:0 14px gilt sonst auch für diese Zeilen. */
+  .gantt-scroll .gantt-row{ padding:0; }
   .gantt-row[data-task-id]{ cursor:pointer; }
   .gantt-row[data-task-id]:hover{ background:var(--bg-sunken); }
   .gantt-row.row-flash, tr.row-flash{ animation:rowFlash 1.4s ease; }
@@ -2929,14 +2936,14 @@
     const rangeStart = addDays(new Date(Math.min(minStart, today)), -5);
     const rangeEnd = addDays(new Date(Math.max(maxEnd, today)), 8);
     const totalDays = Math.max(1, Math.round((rangeEnd - rangeStart)/MS_DAY));
-    // Übersicht zeigt den kompletten Zeitraum ohne Scrollen: Tagesbreite an verfügbare Breite anpassen
+    // Tagesbreite: mindestens so breit, dass die Wochentag-/Tagesbeschriftung (siehe
+    // buildDayLabelRow(), Schwelle dayWidth < 16) immer angezeigt wird — bei einem langen
+    // Gesamtzeitraum (z. B. 6 Monate über alle Releases) würde "alles ohne Scrollen anzeigen"
+    // sonst zu einer viel zu schmalen, unbeschrifteten Tagesspalte führen. Da die Zeitachse jetzt
+    // ohnehin einen immer sichtbaren horizontalen Schieberegler hat (".gantt-hscroll-dock"), muss
+    // hier nicht mehr alles zwingend ohne Scrollen hineinpassen — lieber lesbar und ggf. scrollbar.
     const availableWidth = Math.max(150, document.querySelector(".main").clientWidth - ganttFixedWidth() - 56 - 20);
-    // Auf ganze Pixel runden: eine gebrochene Tagesbreite (z. B. 5.33px) führte dazu, dass die
-    // Wochenend-/Feiertagsfärbung der Kopfzeile (auf einer eigenen, per transform verschobenen
-    // Compositing-Ebene, siehe pinRowToScroll) minimal anders gerundet wurde als die der Zeilen
-    // darunter (keine eigene Ebene) — das ergab den gemeldeten "versetzten" Look. Mit einer
-    // ganzzahligen Tagesbreite verschwindet dieser Rundungsunterschied zwischen den Ebenen.
-    const dayWidth = Math.max(3, Math.round(Math.max(2.2, Math.min(22, availableWidth / totalDays))));
+    const dayWidth = Math.max(16, Math.round(Math.min(22, Math.max(availableWidth / totalDays, 16))));
 
     const cardsHtml = `
       <div class="cards">
