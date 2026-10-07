@@ -779,6 +779,55 @@
   .auth-info{ font-size:12px; color:var(--ink-soft); margin-top:14px; line-height:1.55; text-align:left; display:none; }
   .auth-info.show{ display:block; }
   .auth-info.success{ color:var(--success); }
+  /* ---------- Release-Anlage-Dialog, Tab-Ansichten, Positionsfeld, Löschen-Popup ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; z-index:95; background:rgba(0,20,24,.5); display:flex;
+    align-items:center; justify-content:center; padding:16px; overflow:auto;
+  }
+  .modal{
+    background:var(--bg-elevated); color:var(--ink); border:1px solid var(--border); border-radius:14px;
+    box-shadow:0 20px 60px rgba(0,0,0,.35); width:100%; max-width:540px; padding:22px 24px; max-height:96vh; overflow:auto;
+  }
+  .modal h2{ margin:0 0 4px; font-size:18px; }
+  .modal .modal-sub{ color:var(--ink-faint); font-size:12.5px; margin-bottom:16px; }
+  .modal .mfield{ margin-bottom:14px; }
+  .modal .mfield label{ display:block; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:5px; }
+  .modal .mrow{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .modal .field{ width:100%; }
+  .modal .mhint{ font-size:12px; color:var(--ink-soft); background:var(--bg-sunken); border-radius:8px; padding:9px 11px; margin-top:6px; line-height:1.45; }
+  .modal .mactions{ display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+  .btn-primary-solid{ background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; }
+  .btn-primary-solid:hover{ filter:brightness(.93); }
+
+  /* Ablaufplan / Aufgaben als eigene Tab-Ansicht (?release=…&view=gantt|tasks) */
+  body.solo-view .side, body.solo-view .topbar, body.solo-view .side-backdrop{ display:none !important; }
+  body.solo-view .view > :not(.release-split){ display:none !important; }
+  body.solo-gantt #tasksPanel, body.solo-tasks #ganttPanel{ display:none !important; }
+  .panel-newtab-btn{ flex:none; text-decoration:none; }
+  .panel-head-btns{ display:inline-flex; gap:6px; flex:none; margin-left:auto; }
+
+  /* Positionsfeld in der "#"-Spalte: Zahl ändern = Schritt an diese Stelle verschieben */
+  .pos-input{
+    width:42px; padding:3px 2px; text-align:center; border:1px solid transparent; background:transparent;
+    color:var(--ink-faint); font:inherit; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    border-radius:5px; -moz-appearance:textfield; appearance:textfield;
+  }
+  .pos-input::-webkit-outer-spin-button, .pos-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .pos-input:hover, .pos-input:focus{ border-color:var(--border-strong); background:var(--bg-elevated); color:var(--ink); outline:none; }
+  .task-insert-after{ display:flex; align-items:center; gap:5px; font-size:12px; color:var(--ink-soft); }
+  .task-insert-after input{
+    width:66px; padding:4px 6px; border-radius:6px; border:1px solid var(--border-strong);
+    background:var(--bg-elevated); color:var(--ink); font-size:12px; text-align:center;
+  }
+  td.del-cell{ position:relative; overflow:visible; }
+  /* "Löschen?"-Bestätigung: rechtsbündig in der Zelle verankert und nach links aufgeklappt, damit
+     sie nie über den Rand der scrollenden Tabelle hinausragt und abgeschnitten wird. */
+  .task-del-btn.confirm{
+    position:absolute; right:4px; top:50%; transform:translateY(-50%); z-index:6;
+    width:auto; height:26px; padding:0 12px; white-space:nowrap; font-size:12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.28);
+  }
+  .nav-del.confirm{ white-space:nowrap; }
 </style>
 
 <div class="shell">
@@ -2464,7 +2513,7 @@
   // Bewusst NICHT Teil von "state" — wird nicht in localStorage gespeichert oder synchronisiert.
   const taskTableUI = {};
   function getTaskTableUI(releaseId){
-    if(!taskTableUI[releaseId]) taskTableUI[releaseId] = { sortCol:null, sortDir:1, filters:{} };
+    if(!taskTableUI[releaseId]) taskTableUI[releaseId] = { sortCol:null, sortDir:1, filters:{}, insertAfter:null };
     return taskTableUI[releaseId];
   }
 
@@ -2639,6 +2688,7 @@
     dot.style.background = id === "overview" ? "var(--accent)" : statusMeta(status).dot;
     el.onclick = (e) => {
       if(e.target.closest(".nav-del")) return;
+      urlTarget = null; viewMode = "full"; maximizedPanel = null;
       state.activeId = id; saveState(); renderAll();
     };
     const del = el.querySelector(".nav-del");
@@ -2671,24 +2721,133 @@
     return el;
   }
 
-  function addRelease(){
-    const n = state.releases.length + 1;
-    const anchor = new Date(); anchor.setMonth(anchor.getMonth()+2);
+  // "Neues Release": öffnet einen Dialog, in dem Name, Modus, Datum UND die Basis der Aufgaben
+  // gewählt werden — standardmäßig das letzte Release (späteste Zieltermin), alternativ ein
+  // beliebiges anderes Release oder die eingebaute Standard-Vorlage.
+  function newId(prefix){ return prefix + Math.random().toString(36).slice(2,9); }
+  function cloneTasksFrom(rel){
+    return rel.tasks.map(t => {
+      const nt = { id: newId("t_"), name: t.name, resp: t.resp || "", duration: t.duration, lag: t.lag, label: t.label || "" };
+      applyTaskStatus(nt, "open"); // neues Release startet immer mit offenen Aufgaben
+      return nt;
+    });
+  }
+  function isoToDE(iso){ const [y,m,d] = iso.split("-"); return d+"."+m+"."+y; }
+  function latestRelease(){
+    if(!state.releases.length) return null;
+    return state.releases.reduce((a,b) => (parseISO(b.anchor) > parseISO(a.anchor) ? b : a));
+  }
+  function createReleaseFrom(opts){
     const rel = {
-      id: "r_"+Math.random().toString(36).slice(2,9),
-      dbId: null,
-      updatedAt: new Date().toISOString(),
-      name: "Release "+n,
-      mode: "Publishing",
-      anchor: toISO(anchor),
-      status: "open",
-      notes: "",
-      tasks: makeTemplateTasks()
+      id: newId("r_"), dbId: null, updatedAt: new Date().toISOString(),
+      name: opts.name, mode: opts.mode, anchor: opts.anchor, status: "open", notes: "",
+      tasks: opts.base ? cloneTasksFrom(opts.base) : makeTemplateTasks()
     };
     state.releases.push(rel);
+    urlTarget = null; viewMode = "full"; maximizedPanel = null;
     state.activeId = rel.id;
     saveState(); renderAll();
     scheduleSyncPush(rel);
+    return rel;
+  }
+  function addRelease(){
+    if(document.getElementById("newRelModal")) return;
+    const lastRel = latestRelease();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const others = state.releases.filter(r => r !== lastRel);
+
+    const wrap = document.createElement("div");
+    wrap.className = "modal-backdrop"; wrap.id = "newRelModal";
+    wrap.innerHTML = `
+      <form class="modal" role="dialog" aria-modal="true" aria-labelledby="newRelTitle" autocomplete="off">
+        <h2 id="newRelTitle">Neues Release anlegen</h2>
+        <div class="modal-sub">Die Aufgaben des neuen Releases werden aus einem bestehenden Release bzw. der Standard-Vorlage übernommen.</div>
+        <div class="mfield">
+          <label for="nrBase">Aufgaben übernehmen von</label>
+          <select class="field" id="nrBase">
+            ${lastRel ? `<option value="last">Letztes Release (${esc(lastRel.name)})</option>` : ""}
+            ${others.length ? `<optgroup label="Anderes Release">${others.map(r => `<option value="rel:${escAttr(r.id)}">${esc(r.name)}</option>`).join("")}</optgroup>` : ""}
+            <option value="template">Standard-Vorlage</option>
+          </select>
+          <div class="mhint" id="nrBaseInfo"></div>
+        </div>
+        <div class="mfield">
+          <label for="nrName">Name</label>
+          <input class="field" id="nrName" type="text" maxlength="80" required>
+        </div>
+        <div class="mrow">
+          <div class="mfield">
+            <label for="nrMode">Modus</label>
+            <select class="field" id="nrMode">
+              <option value="Publishing">Publishing (Zieldatum → rückwärts)</option>
+              <option value="Start">Start (Startdatum → vorwärts)</option>
+            </select>
+          </div>
+          <div class="mfield">
+            <label for="nrAnchor" id="nrAnchorLabel">Ziel-/Veröffentlichungsdatum</label>
+            <input class="field" id="nrAnchor" type="date" required>
+          </div>
+        </div>
+        <div class="mactions">
+          <button type="button" class="btn" id="nrCancel">Abbrechen</button>
+          <button type="submit" class="btn btn-primary-solid">Release anlegen</button>
+        </div>
+      </form>`;
+    document.body.appendChild(wrap);
+
+    const f = id => wrap.querySelector("#"+id);
+    let nameTouched = false, anchorTouched = false;
+    const baseFromSelection = () => {
+      const v = f("nrBase").value;
+      if(v === "last") return lastRel;
+      if(v.startsWith("rel:")) return getRelease(v.slice(4));
+      return null; // Standard-Vorlage
+    };
+    const defaultAnchorFor = (base) => {
+      if(base){
+        // Releases erscheinen im Takt von 6 Wochen (ein Product Increment) — gleicher Wochentag wie die Basis
+        let a = addDays(parseISO(base.anchor), 42);
+        while(a < today) a = addDays(a, 42);
+        return toISO(a);
+      }
+      const a = new Date(today); a.setMonth(a.getMonth()+2);
+      return toISO(a);
+    };
+    const refresh = (fromBaseChange) => {
+      const base = baseFromSelection();
+      if(fromBaseChange){
+        f("nrMode").value = base ? base.mode : "Publishing";
+        if(!anchorTouched) f("nrAnchor").value = defaultAnchorFor(base);
+      }
+      f("nrAnchorLabel").textContent = f("nrMode").value === "Start" ? "Startdatum" : "Ziel-/Veröffentlichungsdatum";
+      if(!nameTouched && f("nrAnchor").value) f("nrName").value = "Release " + isoToDE(f("nrAnchor").value);
+      const n = base ? base.tasks.length : DEFAULT_TEMPLATE.length;
+      f("nrBaseInfo").textContent = base
+        ? `${n} Aufgaben mit Verantwortlichen, Dauer, Next Step und Labels werden aus „${base.name}“ übernommen. Der Status aller Aufgaben beginnt bei „Offen“, Notizen werden nicht übernommen.`
+        : `${n} Aufgaben aus der eingebauten Standard-Vorlage (alle „Offen“).`;
+    };
+    f("nrBase").onchange = () => refresh(true);
+    f("nrMode").onchange = () => refresh(false);
+    f("nrAnchor").onchange = () => { anchorTouched = true; refresh(false); };
+    f("nrName").oninput = () => { nameTouched = true; };
+    f("nrBase").value = lastRel ? "last" : "template";
+    refresh(true);
+
+    const close = () => { wrap.remove(); document.removeEventListener("keydown", onKey); };
+    const onKey = (e) => { if(e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    f("nrCancel").onclick = close;
+    wrap.addEventListener("mousedown", (e) => { if(e.target === wrap) close(); });
+    wrap.querySelector("form").onsubmit = (e) => {
+      e.preventDefault();
+      const name = f("nrName").value.trim();
+      const anchor = f("nrAnchor").value;
+      if(!name || !anchor) return;
+      const base = baseFromSelection();
+      close();
+      createReleaseFrom({ name, mode: f("nrMode").value, anchor, base });
+    };
+    f("nrName").focus(); f("nrName").select();
   }
 
   /* ---------------- Tooltip ---------------- */
@@ -3069,6 +3228,7 @@
     titleWrap.appendChild(statusWrap);
 
     const sched = computeSchedule(release);
+    document.title = (viewMode==="gantt" ? "Ablaufplan · " : viewMode==="tasks" ? "Aufgaben · " : "") + release.name + " · Release Radar";
     document.getElementById("topSubtitle").textContent =
       (release.mode === "Start" ? "Vorwärtsplanung ab " : "Rückwärtsplanung zu ") + fmtDate(parseISO(release.anchor));
 
@@ -3151,7 +3311,7 @@
       <div class="release-split">
         <div class="panel${maximizedPanel==="gantt" ? " maximized" : ""}" id="ganttPanel">
           <div class="panel-head">
-            <h2>Ablaufplan</h2>
+            <h2>${viewMode!=="full" ? "Ablaufplan · "+esc(release.name) : "Ablaufplan"}</h2>
             <div class="legend">
               <span><span class="legend-swatch" style="background:var(--success)"></span>Erledigt</span>
               <span><span class="legend-swatch" style="background:var(--accent)"></span>Geplant</span>
@@ -3162,7 +3322,7 @@
               <span><span class="legend-swatch" style="border:2px dashed var(--warning); background:transparent;"></span>Label</span>
             </div>
             <span class="hint">Klick auf einen Balken oder Aufgabennamen springt zur Aufgabe in der Tabelle.</span>
-            <button type="button" class="btn btn-ghost btn-sm panel-maximize-btn" id="btnMaximizeGantt" title="${maximizedPanel==="gantt" ? "Vollbild schließen" : "Ablaufplan im Vollbild anzeigen"}">${maximizedPanel==="gantt" ? "Schließen" : "Vollbild"}</button>
+            ${panelHeadButtons("gantt", release)}
           </div>
           <div class="gantt-wrap">
             <div class="gantt-body">
@@ -3183,9 +3343,9 @@
         </div>
         <div class="panel${maximizedPanel==="tasks" ? " maximized" : ""}" id="tasksPanel">
           <div class="panel-head">
-            <h2>Aufgaben bearbeiten</h2>
-            <span class="hint">Dauer und ${esc(TASK_COL_LABELS.lag)} in Arbeitstagen (Mo–Fr, ohne Feiertage) — Klick auf eine Zeile springt zur Aufgabe im Ablaufplan</span>
-            <button type="button" class="btn btn-ghost btn-sm panel-maximize-btn" id="btnMaximizeTasks" title="${maximizedPanel==="tasks" ? "Vollbild schließen" : "Aufgabenliste im Vollbild anzeigen"}">${maximizedPanel==="tasks" ? "Schließen" : "Vollbild"}</button>
+            <h2>${viewMode!=="full" ? "Aufgaben bearbeiten · "+esc(release.name) : "Aufgaben bearbeiten"}</h2>
+            <span class="hint">Dauer und ${esc(TASK_COL_LABELS.lag)} in Arbeitstagen (Mo–Fr, ohne Feiertage; ${esc(TASK_COL_LABELS.lag)} darf auch negativ sein) — Klick auf eine Zeile springt zur Aufgabe im Ablaufplan; die Zahl in „#“ ändern verschiebt den Schritt</span>
+            ${panelHeadButtons("tasks", release)}
           </div>
           <div class="panel-body" style="padding:0; overflow:hidden;">
             <div class="task-table-toolbar" id="taskTableToolbar"></div>
@@ -3217,8 +3377,9 @@
     root.querySelector("#notesArea").onchange = (e) => {
       release.notes = e.target.value; saveState(); scheduleSyncPush(release);
     };
-    root.querySelector("#btnMaximizeGantt").onclick = () => toggleMaximizePanel("gantt");
-    root.querySelector("#btnMaximizeTasks").onclick = () => toggleMaximizePanel("tasks");
+    const btnMaxG = root.querySelector("#btnMaximizeGantt"); if(btnMaxG) btnMaxG.onclick = () => toggleMaximizePanel("gantt");
+    const btnMaxT = root.querySelector("#btnMaximizeTasks"); if(btnMaxT) btnMaxT.onclick = () => toggleMaximizePanel("tasks");
+    root.querySelectorAll(".btn-back-full").forEach(b => b.onclick = () => exitSoloView());
 
     applyPersistedPanelSizes();
     renderTaskTable(root.querySelector("#taskTable"), release);
@@ -3249,15 +3410,36 @@
   }
 
   /* ---------------- Aufgaben: Hinzufügen / Löschen / Verschieben ---------------- */
-  function addTask(release){
+  function addTask(release, afterNo){
     const t = {
-      id: "t_"+Math.random().toString(36).slice(2,9),
+      id: newId("t_"),
       name: "Neue Aufgabe", resp: "", duration: 1, lag: 0, label: ""
     };
     applyTaskStatus(t, "open");
-    release.tasks.push(t);
+    // afterNo: Schrittnummer, NACH der eingefügt wird (0 = ganz vorne); null/undefined = am Ende
+    if(typeof afterNo === "number" && afterNo >= 0 && afterNo < release.tasks.length) release.tasks.splice(afterNo, 0, t);
+    else release.tasks.push(t);
     saveState(); renderAll(); scheduleSyncPush(release);
+    // Neue Zeile in Sicht scrollen und gleich zum Benennen fokussieren — sonst muss man sie bei langen
+    // Listen erst suchen. Im Ablaufplan wird dieselbe Zeile kurz hervorgehoben.
+    requestAnimationFrame(() => {
+      highlightTaskInTable(t.id);
+      highlightTaskInGantt(t.id);
+      const ta = document.querySelector(`tr[data-task-id="${cssEsc(t.id)}"] .task-name`);
+      if(ta){ ta.focus({ preventScroll:true }); ta.select(); }
+    });
     return t;
+  }
+  // Verschiebt eine Aufgabe auf die angegebene Schrittnummer (1-basiert).
+  function moveTaskToPosition(release, taskId, pos){
+    const fromIdx = release.tasks.findIndex(t => t.id === taskId);
+    if(fromIdx === -1) return;
+    const toIdx = Math.max(0, Math.min(release.tasks.length-1, pos-1));
+    if(fromIdx === toIdx){ renderAll(); return; }
+    const [moved] = release.tasks.splice(fromIdx, 1);
+    release.tasks.splice(toIdx, 0, moved);
+    saveState(); renderAll(); scheduleSyncPush(release);
+    requestAnimationFrame(() => { highlightTaskInTable(moved.id); highlightTaskInGantt(moved.id); });
   }
   function removeTask(release, taskId){
     const idx = release.tasks.findIndex(t => t.id === taskId);
@@ -3282,7 +3464,20 @@
   // Ziehgriff pro Zeile (statt der ganzen Zeile), damit Textfelder/Eingaben in der Zeile
   // normal nutzbar bleiben (Textauswahl etc. löst dadurch kein Drag aus).
   let dragTaskId = null;
+  // Während eine Zeile gezogen wird, scrollt die Liste (und bei Bedarf die Seite) automatisch,
+  // sobald der Mauszeiger in die Nähe des oberen/unteren Rands kommt — so lässt sich eine Aufgabe
+  // auch über mehr als einen Bildschirm verschieben.
+  function dragAutoScroll(container, e){
+    const r = container.getBoundingClientRect();
+    const zone = Math.min(70, r.height/3);
+    let dy = 0;
+    if(e.clientY < r.top + zone) dy = -Math.ceil((r.top + zone - e.clientY)/3) - 3;
+    else if(e.clientY > r.bottom - zone) dy = Math.ceil((e.clientY - (r.bottom - zone))/3) + 3;
+    if(dy) container.scrollTop += dy;
+  }
   function initTaskDragReorder(tbody, release, reorderAllowed){
+    const scrollBox = tbody.closest(".task-table-scroll");
+    if(scrollBox) scrollBox.ondragover = (e) => { if(dragTaskId) dragAutoScroll(scrollBox, e); };
     const rowsEls = tbody.querySelectorAll("tr[data-task-id]");
     rowsEls.forEach(tr => {
       const handle = tr.querySelector(".task-drag-handle");
@@ -3469,7 +3664,7 @@
 
     tableEl.innerHTML = `
       <colgroup>
-        <col style="width:28px;"><col style="width:118px;"><col style="width:32px;"><col><col style="width:120px;">
+        <col style="width:28px;"><col style="width:118px;"><col style="width:48px;"><col><col style="width:120px;">
         <col style="width:58px;"><col style="width:74px;"><col style="width:82px;"><col style="width:100px;">
         <col style="width:120px;"><col style="width:30px;">
       </colgroup>
@@ -3477,7 +3672,7 @@
         <tr class="col-headers">
           <th style="width:28px;" title="${reorderAllowed?"Ziehen zum Verschieben":"Verschieben nur ohne Sortierung/Filter möglich"}"></th>
           <th style="width:118px;">${esc(TASK_COL_LABELS.done)}</th>
-          <th style="width:40px;">#</th>
+          <th style="width:48px;" title="Schrittnummer — Zahl ändern, um den Schritt an diese Position zu verschieben">#</th>
           <th class="sortable" data-sort="name">Schritt${sortArrow("name")}</th>
           <th class="sortable" data-sort="resp">Verantwortlich${sortArrow("resp")}</th>
           <th class="num-cell sortable" style="width:64px;" data-sort="duration">Dauer${sortArrow("duration")}</th>
@@ -3527,15 +3722,22 @@
             ${Object.keys(TASK_STATUS_META).map(k => `<option value="${k}" ${t.status===k?"selected":""}>&#9679; ${esc(TASK_STATUS_META[k].label)}</option>`).join("")}
           </select>
         </td>
-        <td class="mono" style="color:var(--ink-faint);">${i+1}</td>
+        <td><input type="number" class="pos-input" min="1" max="${total}" value="${i+1}" title="Position ändern: Zahl eingeben, der Schritt wird dorthin verschoben" aria-label="Position von Schritt ${i+1}"></td>
         <td><div class="task-name-cell"><textarea class="text-input textarea-auto task-name" rows="1">${esc(t.name)}</textarea></div></td>
         <td><textarea class="text-input textarea-auto resp-input" rows="1">${esc(t.resp||"")}</textarea></td>
         <td class="num-cell"><input type="number" min="0" class="num-input dur-input" value="${t.duration}"></td>
-        <td class="num-cell"><input type="number" min="0" class="num-input lag-input" value="${t.lag}"></td>
+        <td class="num-cell"><input type="number" class="num-input lag-input" value="${t.lag}" title="Arbeitstage bis zum Start des nächsten Schritts — negativ = der nächste Schritt beginnt früher als dieser"></td>
         <td class="date-cell">${fmtDateShort(start)}</td>
         <td class="date-cell">${fmtDateShort(end)}</td>
         <td><input type="text" class="label-input" placeholder="z. B. Meilenstein" value="${escAttr(t.label||"")}"></td>
-        <td><button type="button" class="task-del-btn" title="Aufgabe löschen">&times;</button></td>`;
+        <td class="del-cell"><button type="button" class="task-del-btn" title="Aufgabe löschen">&times;</button></td>`;
+      const posInput = tr.querySelector(".pos-input");
+      posInput.onkeydown = (e) => { if(e.key === "Enter"){ e.preventDefault(); posInput.blur(); } };
+      posInput.onchange = (e) => {
+        const target = parseInt(e.target.value);
+        if(!target || target < 1) { e.target.value = i+1; return; }
+        moveTaskToPosition(release, t.id, Math.min(target, total));
+      };
       const statusSelect = tr.querySelector(".status-select");
       statusSelect.onchange = (e) => {
         applyTaskStatus(t, e.target.value);
@@ -3550,7 +3752,7 @@
       respArea.onkeydown = (e) => { if(e.key === "Enter"){ e.preventDefault(); respArea.blur(); } };
       respArea.onchange = (e) => { t.resp = e.target.value; saveState(); renderAll(); scheduleSyncPush(release); };
       tr.querySelector(".dur-input").onchange = (e) => { t.duration = Math.max(0, parseInt(e.target.value)||0); saveState(); renderAll(); scheduleSyncPush(release); };
-      tr.querySelector(".lag-input").onchange = (e) => { t.lag = Math.max(0, parseInt(e.target.value)||0); saveState(); renderAll(); scheduleSyncPush(release); };
+      tr.querySelector(".lag-input").onchange = (e) => { t.lag = parseInt(e.target.value)||0; saveState(); renderAll(); scheduleSyncPush(release); };
       tr.querySelector(".label-input").onchange = (e) => { t.label = e.target.value.trim(); saveState(); renderAll(); scheduleSyncPush(release); };
       const delBtn = tr.querySelector(".task-del-btn");
       delBtn.onclick = (e) => {
@@ -3624,6 +3826,7 @@
       <span class="task-table-count">${countText}</span>
       <span style="display:flex; gap:8px; align-items:center;">
         ${(hasFilter||hasSort) ? '<button type="button" class="btn btn-ghost btn-sm" id="taskFilterReset">Filter &amp; Sortierung zurücksetzen</button>' : ""}
+        <label class="task-insert-after" title="Leer lassen = am Ende anfügen. Zahl eingeben = die neue Aufgabe direkt nach diesem Schritt einfügen (0 = ganz an den Anfang).">einfügen nach #<input type="number" id="taskInsertAfter" min="0" max="${total}" placeholder="Ende" value="${ui.insertAfter==null ? "" : ui.insertAfter}"></label>
         <button type="button" class="btn btn-sm" id="taskAddBtn">&#43; Aufgabe hinzufügen</button>
       </span>`;
     const resetBtn = toolbar.querySelector("#taskFilterReset");
@@ -3633,7 +3836,17 @@
         renderTaskTable(tableEl, release);
       };
     }
-    toolbar.querySelector("#taskAddBtn").onclick = () => addTask(release);
+    const insertInput = toolbar.querySelector("#taskInsertAfter");
+    insertInput.oninput = () => { ui.insertAfter = insertInput.value === "" ? null : insertInput.value; };
+    insertInput.onkeydown = (e) => { if(e.key === "Enter"){ e.preventDefault(); toolbar.querySelector("#taskAddBtn").click(); } };
+    toolbar.querySelector("#taskAddBtn").onclick = () => {
+      let after = null;
+      if(insertInput.value !== ""){
+        const n = parseInt(insertInput.value);
+        if(!isNaN(n)) after = Math.max(0, Math.min(n, release.tasks.length));
+      }
+      addTask(release, after);
+    };
   }
 
   function renderReleaseGantt(release, sched){
@@ -3776,6 +3989,7 @@
   let maximizedPanel = null; // null | "gantt" | "tasks"
   let releasePanelResizeObserver = null; // ResizeObserver, das #ganttPanel/#tasksPanel beim nativen resize:both beobachtet
   function toggleMaximizePanel(which){
+    if(viewMode !== "full") return; // in der eigenen Tab-Ansicht ist das Panel dauerhaft vollflächig
     maximizedPanel = (maximizedPanel === which) ? null : which;
     document.body.classList.toggle("panel-maximized-active", !!maximizedPanel);
     renderAll();
@@ -3902,11 +4116,133 @@
       }catch(e){}
     });
     document.addEventListener("keydown", (e) => {
-      if(e.key === "Escape" && maximizedPanel) toggleMaximizePanel(maximizedPanel);
+      if(e.key === "Escape" && maximizedPanel && viewMode === "full") toggleMaximizePanel(maximizedPanel);
     });
   }
 
+  document.addEventListener("dragover", (e) => {
+    if(!dragTaskId && !dragReleaseId) return;
+    const edge = 60;
+    if(e.clientY < edge) window.scrollBy(0, -14);
+    else if(e.clientY > window.innerHeight - edge) window.scrollBy(0, 14);
+  });
+
+  /* ---------------- Ansicht per URL (neuer Tab) ----------------
+     ?release=<id>&view=gantt|tasks öffnet ein Release direkt als eigenständige Ablaufplan- bzw.
+     Aufgaben-Ansicht, ohne Seitenleiste und Dashboard. Die URL wird bei jedem Wechsel
+     nachgeführt — dadurch bleibt die Ansicht auch nach "Aktualisieren" (F5) erhalten, statt auf
+     das Dashboard zurückzufallen. Die Ansicht gehört nur zu diesem Tab (nicht zum geteilten
+     localStorage-Stand), mehrere Tabs können also unterschiedliche Ansichten zeigen. */
+  let viewMode = "full";   // "full" | "gantt" | "tasks"
+  let urlTarget = null;    // gewünschte Ansicht aus der URL, solange das Release noch nicht geladen ist
+  function readUrlView(){
+    try{
+      const p = new URLSearchParams(window.location.search || "");
+      const id = p.get("release");
+      if(!id) return null;
+      const v = p.get("view");
+      return { id, mode: (v === "gantt" || v === "tasks") ? v : "full" };
+    }catch(e){ return null; }
+  }
+  function findReleaseByRef(ref){
+    return state.releases.find(r => r.id === ref || r.dbId === ref || (r.dbId && ("sb_"+r.dbId) === ref));
+  }
+  function resolveUrlTarget(){
+    if(!urlTarget) return false;
+    const rel = findReleaseByRef(urlTarget.id);
+    if(!rel) return false;
+    state.activeId = rel.id;
+    viewMode = urlTarget.mode;
+    urlTarget = null;
+    return true;
+  }
+  function buildViewUrl(releaseId, mode){
+    const base = window.location.href.split(/[?#]/)[0];
+    const p = new URLSearchParams();
+    p.set("release", releaseId);
+    if(mode && mode !== "full") p.set("view", mode);
+    return base + "?" + p.toString();
+  }
+  function updateUrl(){
+    if(urlTarget) return; // noch nicht aufgelöst: URL nicht überschreiben
+    try{
+      const u = new URL(window.location.href);
+      if(state.activeId === "overview"){ u.searchParams.delete("release"); u.searchParams.delete("view"); }
+      else{
+        u.searchParams.set("release", state.activeId);
+        if(viewMode === "full") u.searchParams.delete("view"); else u.searchParams.set("view", viewMode);
+      }
+      if(u.toString() !== window.location.href) window.history.replaceState(null, "", u.toString());
+    }catch(e){}
+  }
+  function exitSoloView(){
+    viewMode = "full"; maximizedPanel = null;
+    renderAll();
+  }
+  function panelHeadButtons(which, release){
+    if(viewMode !== "full"){
+      return `<span class="panel-head-btns"><button type="button" class="btn btn-ghost btn-sm panel-maximize-btn btn-back-full" title="Zurück zur Gesamtansicht dieses Releases">Gesamtansicht</button></span>`;
+    }
+    const label = which === "gantt" ? "Ablaufplan" : "Aufgabenliste";
+    const id = which === "gantt" ? "btnMaximizeGantt" : "btnMaximizeTasks";
+    const max = maximizedPanel === which;
+    return `<span class="panel-head-btns"><a class="btn btn-ghost btn-sm panel-newtab-btn" href="${escAttr(buildViewUrl(release.id, which))}" target="_blank" rel="noopener" title="${label} in einem neuen Tab öffnen — z. B. Ablaufplan und Aufgaben nebeneinander legen. Änderungen werden automatisch in alle offenen Tabs übernommen.">Neuer Tab &#8599;</a>` +
+      `<button type="button" class="btn btn-ghost btn-sm panel-maximize-btn" id="${id}" title="${max ? "Vollbild schließen" : label+" im Vollbild anzeigen"}">${max ? "Schließen" : "Vollbild"}</button></span>`;
+  }
+
+  /* ---------------- Abgleich zwischen mehreren Tabs/Fenstern ----------------
+     Ändert man etwas in einem Tab, schreibt dieser den Stand in den localStorage; alle anderen
+     Tabs desselben Browsers bekommen dafür ein "storage"-Ereignis und aktualisieren sich im
+     Hintergrund — ohne Neuladen und ohne ihre eigene Ansicht (Dashboard/Release/Tab-Modus) zu
+     verlassen. Wird gerade in einem Eingabefeld getippt, wird das Neuzeichnen bis zum
+     Verlassen des Felds zurückgestellt, damit nichts verloren geht. */
+  let renderPending = false;
+  function isEditingField(){
+    const a = document.activeElement;
+    return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest("#viewRoot, #topTitle"));
+  }
+  function renderAllSoft(){
+    if(isEditingField()){ renderPending = true; return; }
+    renderAll();
+  }
+  document.addEventListener("focusout", () => {
+    if(!renderPending) return;
+    setTimeout(() => { if(renderPending && !isEditingField()){ renderPending = false; renderAll(); } }, 80);
+  });
+  function adoptStoredState(){
+    let parsed = null;
+    try{ parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); }catch(e){ return; }
+    if(!parsed || !Array.isArray(parsed.releases) || !parsed.releases.length) return;
+    migrateState(parsed);
+    const next = [];
+    parsed.releases.forEach(pr => {
+      const loc = state.releases.find(r => r.id === pr.id || (pr.dbId && r.dbId === pr.dbId));
+      if(!loc){ next.push(pr); return; }
+      if(dirtyKeys.has(loc.dbId || loc.id)){ next.push(loc); return; } // eigener Push steht noch aus
+      const oldId = loc.id;
+      Object.assign(loc, pr);
+      if(state.activeId === oldId) state.activeId = loc.id;
+      next.push(loc);
+    });
+    state.releases = next;
+    if(typeof parsed.dayWidth === "number") state.dayWidth = parsed.dayWidth;
+    if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
+    renderAllSoft();
+  }
+  window.addEventListener("storage", (e) => {
+    if(e.key === STORAGE_KEY && e.newValue) adoptStoredState();
+  });
+
   function renderAll(){
+    renderPending = false;
+    resolveUrlTarget();
+    if(state.activeId === "overview") viewMode = "full";
+    const solo = viewMode !== "full";
+    document.body.classList.toggle("solo-view", solo);
+    document.body.classList.toggle("solo-gantt", solo && viewMode === "gantt");
+    document.body.classList.toggle("solo-tasks", solo && viewMode === "tasks");
+    if(solo) maximizedPanel = viewMode;
+    document.body.classList.toggle("panel-maximized-active", !!maximizedPanel);
     const isSameView = (lastRenderedViewId === state.activeId);
     const scrollSnap = isSameView ? captureViewScrollState() : null;
     lastRenderedViewId = state.activeId;
@@ -3915,6 +4251,7 @@
     root.innerHTML = "";
     if(state.activeId === "overview"){
       document.getElementById("topActions").innerHTML = "";
+      document.title = "Release Radar";
       renderOverview(root);
     } else {
       const rel = getRelease(state.activeId);
@@ -3922,6 +4259,7 @@
       renderRelease(root, rel, isSameView);
     }
     if(scrollSnap) restoreViewScrollState(scrollSnap);
+    updateUrl();
   }
 
   /* ---------------- Sidebar ein-/ausklappen ---------------- */
@@ -4433,7 +4771,7 @@
     state.releases = state.releases.filter(r => !r.dbId || remoteByDbId.has(r.dbId) || dirtyKeys.has(r.dbId));
     if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
-    renderAll();
+    renderAllSoft();
   }
 
   function handleRealtimeEvent(payload){
@@ -4456,7 +4794,7 @@
     if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
     lastSyncAt = new Date();
-    renderAll(); updateSyncUI();
+    renderAllSoft(); updateSyncUI();
   }
 
   function subscribeRealtime(){
@@ -4592,6 +4930,8 @@
   async function initialCloudSync(){
     stripUnsyncedSeedReleases();
     await pullAll();
+    urlTarget = null; // Release aus der URL gab es nach dem ersten Abgleich nicht -> Anzeige wie bisher
+    renderAllSoft();
     subscribeRealtime();
     startFallbackPolling();
   }
@@ -4609,6 +4949,9 @@
     if(IS_EMBEDDED) loadTeamsSdkIfInTeams();
     state = loadState();
     if(!getRelease(state.activeId) && state.activeId !== "overview") state.activeId = "overview";
+    urlTarget = readUrlView();
+    resolveUrlTarget();
+    if(!SYNC_ENABLED) urlTarget = null;
 
     let themeChoice = "system";
     try{ themeChoice = localStorage.getItem("release-radar-theme") || "system"; }catch(e){}
