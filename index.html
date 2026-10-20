@@ -374,6 +374,7 @@
   }
   .gantt-row.head{ height:56px; background:var(--bg-sunken); font-weight:700; font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; position:sticky; top:0; z-index:3; align-items:flex-start; padding-top:5px; }
   .gantt-row.today-row{ background: color-mix(in srgb, var(--today) 6%, transparent); }
+  .gantt-no{ flex:none; min-width:2.1em; margin-right:6px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:var(--ink-faint); font-size:.92em; }
   .gantt-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
   .gantt-track{ position:relative; height:100%; }
   .gantt-bg{ position:absolute; inset:0; }
@@ -940,9 +941,14 @@
             <span>Passwort bestätigen</span>
             <input type="password" id="authPasswordConfirmInput" autocomplete="new-password">
           </label>
+          <label class="auth-field" id="authInviteField" hidden>
+            <span>Einladungscode</span>
+            <input type="text" id="authInviteInput" autocomplete="off">
+          </label>
           <button type="submit" class="btn btn-primary" id="authEmailSubmitBtn">Anmelden</button>
         </form>
         <div class="auth-info" id="authEmailInfo"></div>
+        <div class="auth-info show" id="authOwnHint" hidden>Passwort vergessen? Bitte wenden Sie sich an den Administrator dieser Instanz.</div>
       </div>
 
       <div class="auth-error" id="authError"></div>
@@ -976,11 +982,11 @@
   erfolgt über Row-Level-Security-Regeln in der Datenbank, nicht über die Geheimhaltung dieses Keys.
 -->
 <script>
-  window.RELEASE_RADAR_CONFIG = {
+  /*RR-CONFIG-BEGIN*/ window.RELEASE_RADAR_CONFIG = {
     enabled: true,
     supabaseUrl: "https://gbjdhjepllqydadagtnw.supabase.co/", // z. B. https://abcdefgh.supabase.co
     supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiamRoamVwbGxxeWRhZGFndG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3NTI4NTgsImV4cCI6MjEwMzMyODg1OH0.-zPhRT2GMUmzWtlVzF-80deEwqlBqKO4nxRDBbbYYuw"
-  };
+  }; /*RR-CONFIG-END*/
 </script>
 <!--
   supabase-js (offizielle Supabase-Client-Bibliothek) — über jsDelivr ausgeliefert.
@@ -988,7 +994,117 @@
   Skript wirkungslos. Sollte der Aufruf in Ihrer Umgebung blockiert sein, kann die URL gegen
   https://unpkg.com/@supabase/supabase-js@2 getauscht werden (siehe Einrichtungsanleitung).
 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  /* supabase-js nur laden, wenn NICHT das eigene Backend (backend:"own") konfiguriert ist */
+  if(!(window.RELEASE_RADAR_CONFIG && window.RELEASE_RADAR_CONFIG.backend === "own")){
+    document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>');
+  }
+</script>
+<!-- Eigenes Backend (self-hosted, z. B. Coolify): kleiner Client mit derselben Schnittstelle wie supabase-js (nur die hier genutzten Teile). -->
+<script>
+(function(){
+  const CFG = window.RELEASE_RADAR_CONFIG || {};
+  if(CFG.backend !== "own") return;
+  const BASE = String(CFG.apiUrl || "").replace(/\/+$/, "") + "/api";
+  const SKEY = "release-radar-session";
+  let session = null;
+  try{ session = JSON.parse(localStorage.getItem(SKEY) || "null"); }catch(e){}
+  const listeners = new Set(), channels = new Set();
+  const saveSession = (s) => { session = s; try{ if(s) localStorage.setItem(SKEY, JSON.stringify(s)); else localStorage.removeItem(SKEY); }catch(e){} };
+  const emit = (ev) => listeners.forEach(cb => { try{ cb(ev, session); }catch(e){ console.error(e); } });
+  const errMsg = (m) => ({ data:null, error:{ message:m } });
+
+  async function api(method, path, body){
+    let res, json = null;
+    try{
+      res = await fetch(BASE + path, {
+        method,
+        headers: Object.assign({}, body !== undefined ? {"Content-Type":"application/json"} : {}, session ? {Authorization:"Bearer " + session.access_token} : {}),
+        body: body !== undefined ? JSON.stringify(body) : undefined
+      });
+      try{ json = await res.json(); }catch(e){}
+    }catch(e){ return errMsg("Server nicht erreichbar"); }
+    if(res.status === 401 && session && !path.startsWith("/auth/")){ stopStream(); saveSession(null); emit("SIGNED_OUT"); }
+    if(!res.ok) return errMsg((json && json.error) || ("HTTP " + res.status));
+    return { data: json, error: null };
+  }
+  async function startSession(r){
+    if(r.error) return r;
+    saveSession({ access_token: r.data.access_token, user: r.data.user });
+    emit("SIGNED_IN");
+    return { data:{ session, user: session.user }, error:null };
+  }
+
+  const auth = {
+    async getSession(){ return { data:{ session }, error:null }; },
+    onAuthStateChange(cb){ listeners.add(cb); return { data:{ subscription:{ unsubscribe: () => listeners.delete(cb) } } }; },
+    async signInWithPassword({ email, password }){ return startSession(await api("POST", "/auth/login", { email, password })); },
+    async signUp({ email, password, options }){ return startSession(await api("POST", "/auth/signup", { email, password, invite_code: options && options.data && options.data.invite_code })); },
+    async signOut(){ if(session) await api("POST", "/auth/logout", {}); stopStream(); saveSession(null); emit("SIGNED_OUT"); return { error:null }; },
+    async updateUser({ password }){ const r = await api("POST", "/auth/password", { password }); return { data:r.data, error:r.error }; },
+    async resetPasswordForEmail(){ return errMsg("Passwort-Reset per E-Mail ist nicht verfügbar — bitte den Administrator kontaktieren."); },
+    async signInWithOAuth(){ return errMsg("Microsoft-Anmeldung ist bei diesem Server nicht eingerichtet."); }
+  };
+  window.addEventListener("storage", (e) => {
+    if(e.key !== SKEY) return;
+    let n = null; try{ n = JSON.parse(e.newValue || "null"); }catch(x){}
+    const had = !!session; session = n;
+    if(had && !n) emit("SIGNED_OUT"); else if(!had && n) emit("SIGNED_IN");
+  });
+
+  class Query {
+    constructor(){ this.op = "select"; this.body = null; this.id = null; this.one = false; }
+    select(){ return this; }
+    insert(row){ this.op = "insert"; this.body = row; return this; }
+    update(row){ this.op = "update"; this.body = row; return this; }
+    delete(){ this.op = "delete"; return this; }
+    eq(col, val){ if(col === "id") this.id = val; return this; }
+    single(){ this.one = true; return this; }
+    async run(){
+      if(this.op === "select") return api("GET", "/releases");
+      if(this.op === "insert") return api("POST", "/releases", this.body);
+      if(this.op === "update") return api("PUT", "/releases/" + encodeURIComponent(this.id), this.body);
+      return api("DELETE", "/releases/" + encodeURIComponent(this.id));
+    }
+    then(ok, bad){ return this.run().then(ok, bad); }
+  }
+
+  /* Live-Updates: Server-Sent Events über fetch (Token im Header statt in der URL), mit Wiederverbindung */
+  let streamAbort = null, streamTimer = null;
+  function stopStream(){ clearTimeout(streamTimer); if(streamAbort){ try{ streamAbort.abort(); }catch(e){} streamAbort = null; } }
+  function dispatch(ev){ channels.forEach(ch => ch.handlers.forEach(h => { try{ h(ev); }catch(e){ console.error(e); } })); }
+  async function runStream(){
+    if(streamAbort || !session) return;
+    const ac = new AbortController(); streamAbort = ac;
+    try{
+      const res = await fetch(BASE + "/events", { headers:{ Authorization:"Bearer " + session.access_token, Accept:"text/event-stream" }, signal: ac.signal });
+      if(res.status === 401){ saveSession(null); emit("SIGNED_OUT"); return; }
+      if(!res.ok || !res.body) throw new Error("stream " + res.status);
+      const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
+      for(;;){
+        const { value, done } = await reader.read(); if(done) break;
+        buf += dec.decode(value, { stream:true });
+        let i; while((i = buf.indexOf("\n\n")) >= 0){
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const line = chunk.split("\n").find(l => l.startsWith("data:"));
+          if(line){ try{ dispatch(JSON.parse(line.slice(5).trim())); }catch(e){} }
+        }
+      }
+    }catch(e){ if(ac.signal.aborted) return; }
+    finally{ if(streamAbort === ac) streamAbort = null; }
+    if(channels.size && session) streamTimer = setTimeout(runStream, 3000);
+  }
+
+  window.supabase = { createClient(){
+    return {
+      auth,
+      from: () => new Query(),
+      channel: () => { const ch = { handlers:[], on(t, f, cb){ ch.handlers.push(cb); return ch; }, subscribe(){ channels.add(ch); runStream(); return ch; } }; return ch; },
+      removeChannel: (ch) => { channels.delete(ch); if(!channels.size) stopStream(); }
+    };
+  } };
+})();
+</script>
 
 <script id="seed-data" type="application/json">[
  {
@@ -3543,6 +3659,33 @@
     if(nameRow) nameRow.classList.add("row-flash");
     if(nameRow) setTimeout(() => nameRow.classList.remove("row-flash"), 1400);
   }
+  /* Zeilen-Synchronisation: Klick/Fokus in einer Ansicht markiert dieselbe Aufgabe in der anderen
+     (im selben Fenster) und in anderen Browser-Tabs (BroadcastChannel, Fallback: storage-Event). */
+  const RR_TAB_ID = Math.random().toString(36).slice(2);
+  let rrFocusChannel = null;
+  try{ if("BroadcastChannel" in window) rrFocusChannel = new BroadcastChannel("release-radar-focus"); }catch(e){}
+  function handleRemoteTaskFocus(msg){
+    if(!msg || msg.from === RR_TAB_ID || msg.releaseId !== state.activeId) return;
+    highlightTaskInTable(msg.taskId);
+    highlightTaskInGantt(msg.taskId);
+  }
+  function broadcastTaskFocus(taskId){
+    const msg = { from: RR_TAB_ID, releaseId: state.activeId, taskId: taskId, ts: Date.now() };
+    if(rrFocusChannel){ try{ rrFocusChannel.postMessage(msg); return; }catch(e){} }
+    try{ localStorage.setItem("release-radar-focus-msg", JSON.stringify(msg)); }catch(e){}
+  }
+  if(rrFocusChannel) rrFocusChannel.onmessage = (ev) => handleRemoteTaskFocus(ev.data);
+  window.addEventListener("storage", (ev) => {
+    if(ev.key !== "release-radar-focus-msg" || !ev.newValue) return;
+    try{ handleRemoteTaskFocus(JSON.parse(ev.newValue)); }catch(e){}
+  });
+  function selectTask(taskId, opts){
+    opts = opts || {};
+    if(opts.toTable) highlightTaskInTable(taskId);
+    if(opts.toGantt) highlightTaskInGantt(taskId);
+    broadcastTaskFocus(taskId);
+  }
+  let rrLastFocusedTask = null;
   function cssEsc(s){ return String(s).replace(/["\\]/g, "\\$&"); }
 
   function scrollGanttToToday(){
@@ -3771,8 +3914,15 @@
       // Klick auf die Zeile (außerhalb der Eingabefelder/Buttons) hebt die zugehörige Zeile in
       // der Zeitachse hervor und scrollt sie in Sicht — Verknüpfung Tabelle -> Zeitachse.
       tr.addEventListener("click", (e) => {
-        if(e.target.closest("input, textarea, button, select, .task-drag-handle")) return;
-        highlightTaskInGantt(t.id);
+        if(e.target.closest("button, .task-drag-handle")) return;
+        selectTask(t.id, { toGantt: true });
+      });
+      // Auch Fokus per Tastatur (Tab/Pfeile) in einem Feld der Zeile synchronisiert die Zeitachse —
+      // aber nur beim Wechsel auf eine andere Zeile, damit es nicht bei jedem Feld erneut aufblitzt.
+      tr.addEventListener("focusin", () => {
+        if(rrLastFocusedTask === t.id) return;
+        rrLastFocusedTask = t.id;
+        selectTask(t.id, { toGantt: true });
       });
       body.appendChild(tr);
     });
@@ -3896,10 +4046,11 @@
       nameRow.className = "gantt-row";
       nameRow.dataset.taskId = t.id;
       nameRow.innerHTML = `<span class="task-status-dot" style="background:${statusMeta.color};" title="Status: ${esc(statusMeta.label)}"></span>` +
+        `<span class="gantt-no" title="Schritt ${i+1}">${i+1}</span>` +
         `<span class="gantt-name" title="${escAttr(t.name)}">${esc(t.name)}</span>` +
         (label ? `<span class="pill pill-warning" style="flex:none;">${esc(label)}</span>` : "") +
         (overdue ? `<span class="pill pill-critical" style="flex:none;">Verzug</span>` : "");
-      nameRow.onclick = () => highlightTaskInTable(t.id);
+      nameRow.onclick = () => selectTask(t.id, { toTable: true });
       fixed.appendChild(nameRow);
 
       const track = document.createElement("div");
@@ -3907,7 +4058,7 @@
       track.dataset.taskId = t.id;
       track.style.width = (totalDays*dayWidth)+"px";
       track.style.position = "relative";
-      track.onclick = (e) => { if(!e.target.closest(".gantt-bar")) highlightTaskInTable(t.id); };
+      track.onclick = (e) => { if(!e.target.closest(".gantt-bar")) selectTask(t.id, { toTable: true }); };
       const bg = document.createElement("div");
       bg.className = "gantt-track";
       bg.style.width = (totalDays*dayWidth)+"px";
@@ -3924,7 +4075,7 @@
         showTip(`<b>${esc(t.name)}</b><br>${fmtDate(sched.starts[i])} → ${fmtDate(sched.ends[i])}<br>Verantwortlich: ${esc(t.resp||"–")}<br>Status: ${esc(statusMeta.label)}` + (overdue ? `<br><span style="color:#f3a39d;">in Verzug</span>` : ""), e.clientX, e.clientY);
       });
       bar.addEventListener("mouseleave", hideTip);
-      bar.addEventListener("click", (e) => { e.stopPropagation(); highlightTaskInTable(t.id); });
+      bar.addEventListener("click", (e) => { e.stopPropagation(); selectTask(t.id, { toTable: true }); });
       bg.appendChild(bar);
       track.appendChild(bg);
       rowsHost.appendChild(track);
@@ -4644,7 +4795,7 @@
     try{
       const { data, error } = await supabaseClient.auth.signUp({
         email, password,
-        options:{ emailRedirectTo: window.location.href.split("#")[0].split("?")[0] }
+        options:{ emailRedirectTo: window.location.href.split("#")[0].split("?")[0], data:{ invite_code: (document.getElementById("authInviteInput")||{}).value || "" } }
       });
       if(error) throw error;
       // Ist "Confirm email" in Supabase deaktiviert, liefert signUp direkt eine aktive Session
@@ -4815,6 +4966,8 @@
         const { data, error } = await supabaseClient.from("releases").insert(row).select().single();
         if(error) throw error;
         release.dbId = data.id;
+        // Das Live-Update zum eigenen Insert kann vor der Antwort eintreffen -> dann existiert das Release doppelt
+        state.releases = state.releases.filter(r => r === release || r.dbId !== data.id);
         const oldId = release.id;
         release.id = "sb_" + data.id;
         if(state.activeId === oldId) state.activeId = release.id;
@@ -4908,7 +5061,27 @@
       pwInput.required = false; pwConfirmInput.required = false;
       submitBtn.textContent = "Link zum Zurücksetzen senden";
     }
+    const inviteField = document.getElementById("authInviteField");
+    if(inviteField) inviteField.hidden = !(mode === "signup" && ownInviteRequired);
     clearAuthFormError(); clearAuthEmailInfo();
+  }
+  let ownInviteRequired = false;
+
+  // Eigenes Backend: nur E-Mail/Passwort — Microsoft-Tab und "Passwort vergessen" ausblenden, Server-Konfiguration lesen.
+  async function setupOwnBackendUI(){
+    const tabs = document.getElementById("authTabs");
+    if(tabs) tabs.style.display = "none";
+    setAuthTab("email");
+    const resetLink = document.querySelector('#authModeSwitch [data-mode="reset"]');
+    if(resetLink) resetLink.style.display = "none";
+    const hint = document.getElementById("authOwnHint"); if(hint) hint.hidden = false;
+    try{
+      const r = await fetch(String(CFG.apiUrl || "").replace(/\/+$/, "") + "/api/config");
+      const c = await r.json();
+      ownInviteRequired = !!c.inviteRequired;
+      const signupLink = document.querySelector('#authModeSwitch [data-mode="signup"]');
+      if(signupLink && c.registration === false) signupLink.style.display = "none";
+    }catch(e){}
   }
 
   // Entfernt die eingebauten Demo-/Startreleases (nie synchronisiert, dbId===null, isSeed===true)
@@ -4991,6 +5164,8 @@
       document.querySelectorAll("#authModeSwitch .auth-mode-link").forEach(b => {
         b.onclick = () => setAuthEmailMode(b.dataset.mode);
       });
+
+      if(CFG.backend === "own") setupOwnBackendUI();
 
       if(signInBtn) signInBtn.onclick = async () => {
         signInBtn.disabled = true;
