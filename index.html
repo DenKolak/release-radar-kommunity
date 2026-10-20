@@ -208,6 +208,21 @@
 
   .side-foot{ padding:12px; border-top:1px solid var(--border); display:flex; gap:6px; }
   .side.collapsed .side-foot{ display:none; }
+  .version-row{ padding:0 12px 12px; text-align:center; }
+  .version-btn{ background:none; border:0; color:var(--ink-faint); font-size:11.5px; cursor:pointer; padding:4px 8px; border-radius:6px; }
+  .version-btn:hover{ color:var(--accent-ink); background:var(--bg-sunken); }
+  .side.collapsed .version-row{ display:none; }
+  .modal.modal-notes{ max-width:680px; }
+  .rn-ver{ border-top:1px solid var(--border); padding:14px 0 2px; }
+  .rn-ver:first-of-type{ border-top:0; padding-top:0; }
+  .rn-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .rn-head b{ font-size:15px; }
+  .rn-date{ color:var(--ink-faint); font-size:12px; }
+  .rn-title{ color:var(--ink-soft); font-size:13px; font-weight:600; }
+  .rn-cur{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; background:var(--accent-soft); color:var(--accent-ink); padding:2px 7px; border-radius:99px; }
+  .rn-list{ margin:6px 0 0; padding-left:18px; font-size:13px; line-height:1.5; color:var(--ink); }
+  .rn-list li{ margin:2px 0; }
+  @media (max-width:860px){ .side.collapsed .version-row{ display:none !important; } }
   .theme-btn{
     flex:1; padding:7px 8px; border-radius:7px; border:1px solid var(--border);
     background:var(--bg); color:var(--ink-soft); cursor:pointer; font-size:12px; font-weight:600;
@@ -876,6 +891,7 @@
       <button class="theme-btn" data-theme-choice="system">Auto</button>
       <button class="theme-btn" data-theme-choice="dark">Dunkel</button>
     </div>
+    <div class="version-row"><button class="version-btn" id="versionBtn" title="Release Notes anzeigen"></button></div>
   </aside>
 
   <main class="main">
@@ -5108,6 +5124,68 @@
     subscribeRealtime();
     startFallbackPolling();
   }
+
+  /* ---------------- App-Version & Release Notes ----------------
+     Neue Version: Eintrag OBEN in APP_RELEASES ergänzen — die angezeigte Versionsnummer in der
+     Seitenleiste ist immer der erste Eintrag. */
+  const APP_RELEASES = [
+    { v:"1.6.0", date:"20.10.2026", title:"Schrittnummern & Zeilen-Synchronisation", items:[
+      "Ablaufplan: Vor jedem Schritt steht jetzt die laufende Nummer (entspricht der Reihenfolge in „Aufgaben bearbeiten“) — erleichtert das Identifizieren der Schritte, besonders in separaten Tabs.",
+      "Klick oder Fokus (auch per Tab-Taste) in einer Zeile von „Aufgaben bearbeiten“ markiert dieselbe Zeile im Ablaufplan (und umgekehrt wie bisher).",
+      "Tab-übergreifend: Klick in einer Zeile im Tab „Ablaufplan“ bzw. „Aufgaben bearbeiten“ markiert dieselbe Zeile im jeweils anderen Tab (gleiches Release).",
+      "Neu: Versionsnummer und Release Notes in der Seitenleiste."]},
+    { v:"1.5.0", date:"15.10.2026", title:"Eigenes Backend (Self-Hosting)", items:[
+      "Optionales selbst gehostetes Backend (Node + SQLite) als Ersatz für Supabase: Anmeldung mit E-Mail und Passwort, Live-Updates, Benutzerverwaltung per Kommandozeile, Import aus Supabase, Backup.",
+      "Docker-Image und Schritt-für-Schritt-Anleitung für den Betrieb z. B. auf TrueNAS mit Coolify unter eigener Domain.",
+      "Anmeldemaske passt sich an: ohne Microsoft-Login und ohne „Passwort vergessen“, optional mit Einladungscode.",
+      "Fix: Beim Anlegen eines Releases konnte durch das Live-Update kurzzeitig ein Duplikat entstehen."]},
+    { v:"1.4.0", title:"Cloud-Sync und Anmeldung", items:[
+      "Optionale Synchronisation über Supabase: Releases werden pro Zeile gespeichert, Änderungen erscheinen live bei allen Nutzern (Realtime plus Fallback-Abgleich alle 45 Sekunden).",
+      "Anmeldung über Microsoft (Azure) bzw. E-Mail; Sync-Status und Abmelden in der Seitenleiste.",
+      "Konfliktregel: Die jeweils neueste Änderung gewinnt; Änderungen werden gebündelt gespeichert."]},
+    { v:"1.3.0", title:"Ansichten, Layout und Bedienung", items:[
+      "Ablaufplan und Aufgabentabelle nebeneinander (bei ausreichender Breite) mit Verknüpfung: Klick auf Balken oder Aufgabenname springt zur Aufgabe in der Tabelle.",
+      "Panels per Knopfdruck im Vollbild; Ablaufplan und Aufgaben lassen sich in eigenen Browser-Tabs öffnen (URL mit release und view) und bleiben zwischen Tabs abgeglichen.",
+      "Responsive Darstellung für Tablet und Smartphone inkl. einklappbarer Navigation; Breite der Namensspalte im Ablaufplan einstellbar.",
+      "Fix: Zeitachse, Wochenend-/Feiertagsspalten und Balken waren gegenüber der Kopfzeile versetzt."]},
+    { v:"1.2.0", title:"Termine, Feiertage und Bearbeitung", items:[
+      "Feiertage je Bundesland wählbar, mit automatischem Import über eine öffentliche API.",
+      "Meilensteine und Labels (z. B. Feature-Freeze) in der Zeitachse.",
+      "Aufgaben per Drag & Drop oder über das Positionsfeld neu anordnen; Löschen mit Bestätigung.",
+      "Hinzufügen von Aufgaben an beliebiger Stelle; Verzugs- und Statusanzeige je Aufgabe."]},
+    { v:"1.1.0", title:"Mehrere Releases", items:[
+      "Übersicht über alle Releases; neues Release aus Standard-Vorlage, letztem oder beliebigem Release anlegen; Duplizieren.",
+      "Release-Status, Umbenennen und Notizen; Link zu den zugehörigen Versionen in Jira.",
+      "Modus „Publishing“ (Zieldatum, rückwärts rechnen) und „Start“ (Startdatum, vorwärts rechnen)."]},
+    { v:"1.0.0", title:"Erste Version", items:[
+      "Release-Ablaufplan als Gantt-Diagramm mit Aufgabentabelle (Dauer in Arbeitstagen, Abhängigkeit zum Vorgänger, Status).",
+      "Berücksichtigung von Wochenenden und Feiertagen in Baden-Württemberg, Heute-Linie.",
+      "Lokale Speicherung im Browser; Hell-, Dunkel- und Automatik-Design."]}
+  ];
+  const APP_VERSION = APP_RELEASES[0].v;
+  function openReleaseNotes(){
+    if(document.getElementById("rnModal")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "modal-backdrop"; wrap.id = "rnModal";
+    wrap.innerHTML = `<div class="modal modal-notes" role="dialog" aria-modal="true" aria-labelledby="rnTitle">
+      <h2 id="rnTitle">Release Notes</h2>
+      <div class="modal-sub">Release Radar · aktuelle Version ${esc(APP_VERSION)}</div>
+      ${APP_RELEASES.map((r,i) => `<div class="rn-ver"><div class="rn-head"><b>Version ${esc(r.v)}</b>${i===0?'<span class="rn-cur">aktuell</span>':""}${r.date?`<span class="rn-date">${esc(r.date)}</span>`:""}<span class="rn-title">${esc(r.title)}</span></div><ul class="rn-list">${r.items.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`).join("")}
+      <div class="mactions"><button type="button" class="btn" id="rnClose">Schließen</button></div></div>`;
+    document.body.appendChild(wrap);
+    const close = () => { wrap.remove(); document.removeEventListener("keydown", onKey); };
+    const onKey = (e) => { if(e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    wrap.addEventListener("mousedown", (e) => { if(e.target === wrap) close(); });
+    wrap.querySelector("#rnClose").onclick = close;
+    wrap.querySelector("#rnClose").focus();
+  }
+  (function initVersion(){
+    const b = document.getElementById("versionBtn");
+    if(!b) return;
+    b.textContent = "Version " + APP_VERSION + " · Release Notes";
+    b.onclick = openReleaseNotes;
+  })();
 
   /* ---------------- Init ---------------- */
   document.addEventListener("DOMContentLoaded", async () => {
