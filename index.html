@@ -954,7 +954,7 @@
       <div class="auth-panel" id="authPanelEmail" hidden>
         <div class="auth-mode-switch" id="authModeSwitch">
           <button type="button" class="auth-mode-link active" data-mode="signin">Anmelden</button>
-          <button type="button" class="auth-mode-link" data-mode="signup">Konto erstellen</button>
+          <button type="button" class="auth-mode-link" data-mode="signup">Zugang anfragen</button>
           <button type="button" class="auth-mode-link" data-mode="reset">Passwort vergessen</button>
         </div>
         <form class="auth-form" id="authEmailForm">
@@ -4852,6 +4852,19 @@
     }
   }
 
+  const ACCESS_REQUEST_EMAIL = "denislav.kolaksazov@evia.de";
+  // Zugang anfragen: öffnet eine vorbereitete E-Mail an den Administrator (Konto wird dort manuell angelegt/freigegeben).
+  function requestAccess(email){
+    clearAuthFormError();
+    if(!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ showAuthFormError("Bitte eine gültige E-Mail-Adresse eingeben."); return false; }
+    const subject = "Zugangsanfrage Release Radar";
+    const body = "Hallo Denislav,\n\nbitte richte mir einen Zugang zum Release Radar ein.\n\nE-Mail-Adresse: " + email + "\nInstanz: " + window.location.href.split("#")[0].split("?")[0] + "\n\nDanke und viele Grüße";
+    const href = "mailto:" + ACCESS_REQUEST_EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+    try{ window.open(href, "_blank") || (window.location.href = href); }catch(e){ window.location.href = href; }
+    showAuthEmailInfo("Ihre Anfrage ist vorbereitet. Falls sich kein E-Mail-Programm geöffnet hat, schreiben Sie bitte direkt an " + ACCESS_REQUEST_EMAIL + " und nennen Sie Ihre E-Mail-Adresse (" + email + "). Sie erhalten eine Rückmeldung, sobald der Zugang eingerichtet ist.", true);
+    return true;
+  }
+
   async function signUpWithEmail(email, password, passwordConfirm){
     clearAuthFormError();
     if(!email || !password){ showAuthFormError("Bitte E-Mail-Adresse und Passwort eingeben."); return false; }
@@ -5134,17 +5147,19 @@
       pwInput.autocomplete = "current-password"; pwInput.required = true; pwConfirmInput.required = false;
       submitBtn.textContent = "Anmelden";
     }else if(mode === "signup"){
-      pwField.hidden = false; pwConfirmField.hidden = false;
-      pwInput.autocomplete = "new-password"; pwInput.required = true; pwConfirmInput.required = true;
-      submitBtn.textContent = "Konto erstellen";
+      // Kein Selbst-Registrieren: der Zugang wird per E-Mail beim Administrator angefragt.
+      pwField.hidden = true; pwConfirmField.hidden = true;
+      pwInput.required = false; pwConfirmInput.required = false;
+      submitBtn.textContent = "Zugang per E-Mail anfragen";
+      showAuthEmailInfo("Konten werden nicht selbst angelegt. Geben Sie Ihre E-Mail-Adresse ein — es öffnet sich eine vorbereitete E-Mail an " + ACCESS_REQUEST_EMAIL + ". Evia-Mitarbeitende können sich alternativ direkt mit dem Microsoft-Konto anmelden.", false);
     }else{ // reset
       pwField.hidden = true; pwConfirmField.hidden = true;
       pwInput.required = false; pwConfirmInput.required = false;
       submitBtn.textContent = "Link zum Zurücksetzen senden";
     }
     const inviteField = document.getElementById("authInviteField");
-    if(inviteField) inviteField.hidden = !(mode === "signup" && ownInviteRequired);
-    clearAuthFormError(); clearAuthEmailInfo();
+    if(inviteField) inviteField.hidden = true;
+    clearAuthFormError(); if(mode !== "signup") clearAuthEmailInfo();
   }
   let ownInviteRequired = false;
 
@@ -5161,7 +5176,7 @@
       const c = await r.json();
       ownInviteRequired = !!c.inviteRequired;
       const signupLink = document.querySelector('#authModeSwitch [data-mode="signup"]');
-      if(signupLink && c.registration === false) signupLink.style.display = "none";
+      void signupLink; // Zugang wird immer per E-Mail angefragt (kein Selbst-Registrieren)
     }catch(e){}
   }
 
@@ -5194,6 +5209,9 @@
      Neue Version: Eintrag OBEN in APP_RELEASES ergänzen — die angezeigte Versionsnummer in der
      Seitenleiste ist immer der erste Eintrag. */
   const APP_RELEASES = [
+    { v:"1.7.1", date:"21.10.2026", title:"Zugang nur auf Anfrage", items:[
+      "„Konto erstellen“ ersetzt durch „Zugang anfragen“: Die App legt keine Konten mehr selbst an, sondern öffnet eine vorbereitete E-Mail an den Administrator.",
+      "Die Microsoft-Anmeldung bleibt unverändert (nur für evia-Mitarbeitende)."]},
     { v:"1.7.0", date:"21.10.2026", title:"Lese-Modus ohne Anmeldung", items:[
       "Die App startet ohne Anmeldung im Lese-Modus: alle Releases, Ablaufpläne und Aufgaben sind sichtbar und werden live aktualisiert.",
       "Bearbeiten (Felder, Status, Aufgaben anlegen/löschen/verschieben, Release anlegen/duplizieren/löschen) ist gesperrt, bis man sich über „Anmelden“ authentifiziert; nach der Abmeldung geht es zurück in die Lese-Ansicht.",
@@ -5344,7 +5362,7 @@
         submitBtn.disabled = true;
         try{
           if(authEmailMode === "signin") await signInWithEmail(email, pw);
-          else if(authEmailMode === "signup") await signUpWithEmail(email, pw, pw2);
+          else if(authEmailMode === "signup") requestAccess(email);
           else await sendPasswordReset(email);
         } finally {
           submitBtn.disabled = false;
