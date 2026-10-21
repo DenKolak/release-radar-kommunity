@@ -208,6 +208,18 @@
 
   .side-foot{ padding:12px; border-top:1px solid var(--border); display:flex; gap:6px; }
   .side.collapsed .side-foot{ display:none; }
+  /* Lese-Modus (nicht angemeldet): Bearbeiten-Elemente ausblenden bzw. sperren */
+  .sync-bar{ flex-wrap:wrap; }
+  #syncSignInBtn{ flex:1 1 100% !important; order:3; justify-content:center; }
+  .ro-banner{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 12px; padding:9px 14px; border-radius:10px;
+    background:var(--accent-soft); color:var(--accent-ink); border:1px solid var(--border); font-size:12.5px; }
+  .ro-banner b{ font-weight:700; }
+  .ro-banner .btn{ margin-left:auto; }
+  body.read-only .nav-del, body.read-only .nav-add, body.read-only #btnDuplicate, body.read-only .task-insert-after, body.read-only #taskAddBtn,
+  body.read-only .task-del-btn, body.read-only .task-drag-handle, body.read-only .del-cell .task-del-btn{ display:none !important; }
+  body.read-only .rename-input{ pointer-events:none; }
+  body.read-only .status-opt, body.read-only .pos-input, body.read-only .status-select{ pointer-events:none; }
+  body.read-only .task-table input[type=checkbox]{ pointer-events:none; }
   .version-row{ padding:0 12px 12px; text-align:center; }
   .version-btn{ background:none; border:0; color:var(--ink-faint); font-size:11.5px; cursor:pointer; padding:4px 8px; border-radius:6px; }
   .version-btn:hover{ color:var(--accent-ink); background:var(--bg-sunken); }
@@ -877,7 +889,8 @@
           <span class="sync-meta-text" id="syncText">Bitte anmelden</span>
         </div>
       </div>
-      <div class="sync-actions">
+      <button class="btn btn-sm btn-primary-solid" id="syncSignInBtn" style="display:none; flex:none;">Anmelden</button>
+      <div class="sync-actions" id="syncActions">
         <button class="btn btn-ghost btn-sm" id="syncNowBtn" title="Jetzt synchronisieren">&#8635;</button>
         <button class="btn btn-ghost btn-sm" id="syncSignOutBtn" title="Abmelden">&#9099;</button>
       </div>
@@ -926,8 +939,8 @@
       </svg>
     </div>
     <div id="authLoginScreen">
-      <h2>Team-Arbeitsstand laden</h2>
-      <p>Diese Release Radar-Instanz ist für die Zusammenarbeit im Team eingerichtet. Melden Sie sich an, um denselben Arbeitsstand wie Ihre Kolleginnen und Kollegen zu sehen — Änderungen werden in Echtzeit geteilt.</p>
+      <h2>Zum Bearbeiten anmelden</h2>
+      <p>Der Arbeitsstand ist ohne Anmeldung nur lesbar. Melden Sie sich an, um Releases und Aufgaben zu bearbeiten — Änderungen werden in Echtzeit mit dem Team geteilt.</p>
 
       <div class="auth-tabs" id="authTabs">
         <button type="button" class="auth-tab active" data-tab="sso">Microsoft-Konto</button>
@@ -968,6 +981,7 @@
       </div>
 
       <div class="auth-error" id="authError"></div>
+      <button type="button" class="btn btn-ghost btn-sm" id="authCloseBtn" style="margin-top:14px;">Nur ansehen (ohne Anmeldung)</button>
     </div>
 
     <div id="authRecoveryScreen" hidden>
@@ -1047,6 +1061,7 @@
   async function startSession(r){
     if(r.error) return r;
     saveSession({ access_token: r.data.access_token, user: r.data.user });
+    if(channels.size){ stopStream(); runStream(); }
     emit("SIGNED_IN");
     return { data:{ session, user: session.user }, error:null };
   }
@@ -1090,11 +1105,11 @@
   function stopStream(){ clearTimeout(streamTimer); if(streamAbort){ try{ streamAbort.abort(); }catch(e){} streamAbort = null; } }
   function dispatch(ev){ channels.forEach(ch => ch.handlers.forEach(h => { try{ h(ev); }catch(e){ console.error(e); } })); }
   async function runStream(){
-    if(streamAbort || !session) return;
+    if(streamAbort) return;
     const ac = new AbortController(); streamAbort = ac;
     try{
-      const res = await fetch(BASE + "/events", { headers:{ Authorization:"Bearer " + session.access_token, Accept:"text/event-stream" }, signal: ac.signal });
-      if(res.status === 401){ saveSession(null); emit("SIGNED_OUT"); return; }
+      const res = await fetch(BASE + "/events", { headers: Object.assign({ Accept:"text/event-stream" }, session ? { Authorization:"Bearer " + session.access_token } : {}), signal: ac.signal });
+      if(res.status === 401 && session){ saveSession(null); emit("SIGNED_OUT"); return; }
       if(!res.ok || !res.body) throw new Error("stream " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
       for(;;){
@@ -1108,7 +1123,7 @@
       }
     }catch(e){ if(ac.signal.aborted) return; }
     finally{ if(streamAbort === ac) streamAbort = null; }
-    if(channels.size && session) streamTimer = setTimeout(runStream, 3000);
+    if(channels.size) streamTimer = setTimeout(runStream, session ? 3000 : 10000);
   }
 
   window.supabase = { createClient(){
@@ -4369,7 +4384,7 @@
     return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest("#viewRoot, #topTitle"));
   }
   function renderAllSoft(){
-    if(isEditingField()){ renderPending = true; return; }
+    if(isEditingField() && !isReadOnly()){ renderPending = true; return; }
     renderAll();
   }
   document.addEventListener("focusout", () => {
@@ -4400,6 +4415,30 @@
     if(e.key === STORAGE_KEY && e.newValue) adoptStoredState();
   });
 
+  /* ---------------- Lese-Modus ----------------
+     Ist die Team-Synchronisierung aktiv und niemand angemeldet, ist die App nur lesbar:
+     alle Release-/Aufgabenfelder werden gesperrt, Bearbeiten-Schaltflächen ausgeblendet. Filter,
+     Sortierung, Ansichten und Navigation bleiben bedienbar. */
+  function isReadOnly(){ return SYNC_ENABLED && !currentUser; }
+  function applyReadOnly(){
+    const ro = isReadOnly();
+    document.body.classList.toggle("read-only", ro);
+    if(!ro) return;
+    const lock = (el) => { if(el.matches(".col-filter-input")) return;
+      if(el.tagName === "SELECT" || el.type === "checkbox" || el.type === "number" && el.classList.contains("pos-input")){ el.disabled = true; }
+      else el.readOnly = true; };
+    document.querySelectorAll("#viewRoot input, #viewRoot textarea, #viewRoot select, #topTitle input").forEach(lock);
+    document.querySelectorAll("#viewRoot #modeSelect, #viewRoot #anchorInput, #viewRoot .status-opt").forEach(el => { el.disabled = true; });
+    const root = document.getElementById("viewRoot");
+    if(root && !root.querySelector(".ro-banner")){
+      const b = document.createElement("div");
+      b.className = "ro-banner";
+      b.innerHTML = `<span><b>Nur-Lese-Ansicht.</b> Zum Bearbeiten ist eine Anmeldung erforderlich.</span><button type="button" class="btn btn-sm btn-primary-solid" id="roLoginBtn">Anmelden</button>`;
+      root.insertBefore(b, root.firstChild);
+      b.querySelector("#roLoginBtn").onclick = () => requestLogin();
+    }
+  }
+
   function renderAll(){
     renderPending = false;
     resolveUrlTarget();
@@ -4426,6 +4465,7 @@
       renderRelease(root, rel, isSameView);
     }
     if(scrollSnap) restoreViewScrollState(scrollSnap);
+    applyReadOnly();
     updateUrl();
   }
 
@@ -4603,13 +4643,20 @@
     const nameEl = document.getElementById("syncName");
     const dot = document.getElementById("syncDot");
     const text = document.getElementById("syncText");
+    const inBtn = document.getElementById("syncSignInBtn");
+    const acts = document.getElementById("syncActions");
+    if(inBtn) inBtn.style.display = currentUser ? "none" : "";
+    if(acts){
+      acts.style.display = "";
+      const so = document.getElementById("syncSignOutBtn"); if(so) so.style.display = currentUser ? "" : "none";
+    }
     if(!currentUser){
       avatar.className = "sync-avatar";
-      avatar.textContent = "?";
-      nameEl.textContent = "Nicht angemeldet";
-      nameEl.title = "";
-      dot.className = "sync-dot";
-      text.textContent = "Bitte anmelden";
+      avatar.textContent = "\u{1F441}";
+      nameEl.textContent = "Nur Lesen";
+      nameEl.title = "Nicht angemeldet — Bearbeiten erfordert eine Anmeldung";
+      dot.className = lastSyncError ? "sync-dot err" : "sync-dot ok";
+      text.textContent = lastSyncError ? ("Fehler: " + lastSyncError) : (lastSyncAt ? "Aktuell · " + lastSyncAt.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : "Lade …");
     } else {
       const displayName = userDisplayName();
       avatar.className = "sync-avatar ok";
@@ -4660,10 +4707,12 @@
         // und schließt sich eigenständig.
         hideAuthGate();
         initialCloudSync();
+        renderAll();
       }else if(!currentUser && hadUser){
         if(realtimeChannel){ supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; }
         clearInterval(pollTimer);
-        showAuthGate();
+        hideAuthGate();
+        enterViewerMode();
       }
     });
     return true;
@@ -5023,6 +5072,22 @@
     pollTimer = setInterval(() => { if(!syncing) pullAll(); }, 45000);
   }
 
+  // Lese-Modus starten: Releases anonym laden (nur lesen), Live-Updates und Abgleich laufen weiter.
+  async function enterViewerMode(){
+    stripUnsyncedSeedReleases();
+    renderAll();
+    await pullAll();
+    renderAllSoft();
+    subscribeRealtime();
+    startFallbackPolling();
+  }
+  // Anmeldefenster auf Wunsch öffnen (Schließen -> zurück in die Lese-Ansicht)
+  function requestLogin(){
+    const login = document.getElementById("authLoginScreen"), rec = document.getElementById("authRecoveryScreen");
+    if(login) login.hidden = false; if(rec) rec.hidden = true;
+    clearAuthFormError(); showAuthGate();
+  }
+
   function showAuthGate(){
     const gate = document.getElementById("authGate");
     if(gate) gate.style.display = "flex";
@@ -5129,6 +5194,11 @@
      Neue Version: Eintrag OBEN in APP_RELEASES ergänzen — die angezeigte Versionsnummer in der
      Seitenleiste ist immer der erste Eintrag. */
   const APP_RELEASES = [
+    { v:"1.7.0", date:"21.10.2026", title:"Lese-Modus ohne Anmeldung", items:[
+      "Die App startet ohne Anmeldung im Lese-Modus: alle Releases, Ablaufpläne und Aufgaben sind sichtbar und werden live aktualisiert.",
+      "Bearbeiten (Felder, Status, Aufgaben anlegen/löschen/verschieben, Release anlegen/duplizieren/löschen) ist gesperrt, bis man sich über „Anmelden“ authentifiziert; nach der Abmeldung geht es zurück in die Lese-Ansicht.",
+      "Filter, Sortierung, Ansichten, neue Tabs und Release Notes bleiben im Lese-Modus bedienbar.",
+      "Selbst gehostetes Backend: Lesen ohne Anmeldung per PUBLIC_READ steuerbar (Standard: an); Schreiben erfordert immer eine Anmeldung."]},
     { v:"1.6.0", date:"20.10.2026", title:"Schrittnummern & Zeilen-Synchronisation", items:[
       "Ablaufplan: Vor jedem Schritt steht jetzt die laufende Nummer (entspricht der Reihenfolge in „Aufgaben bearbeiten“) — erleichtert das Identifizieren der Schritte, besonders in separaten Tabs.",
       "Klick oder Fokus (auch per Tab-Taste) in einer Zeile von „Aufgaben bearbeiten“ markiert dieselbe Zeile im Ablaufplan (und umgekehrt wie bisher).",
@@ -5292,14 +5362,25 @@
         finally{ submitBtn.disabled = false; }
       });
 
-      if(syncNowBtn) syncNowBtn.onclick = () => { if(currentUser) pullAll(); };
+      if(syncNowBtn) syncNowBtn.onclick = () => { if(ok) pullAll(); };
+      const syncSignInBtn = document.getElementById("syncSignInBtn");
+      if(syncSignInBtn) syncSignInBtn.onclick = requestLogin;
+      const authCloseBtn = document.getElementById("authCloseBtn");
+      if(authCloseBtn) authCloseBtn.onclick = hideAuthGate;
+      document.addEventListener("keydown", (e) => {
+        if(e.key === "Escape" && !currentUser){ const g = document.getElementById("authGate"); const rec = document.getElementById("authRecoveryScreen");
+          if(g && g.style.display === "flex" && rec && rec.hidden) hideAuthGate(); }
+      });
       if(signOutBtn) signOutBtn.onclick = requestSignOut;
 
-      // Team-Synchronisierung ist aktiv -> die App ist grundsätzlich nur nach Anmeldung nutzbar,
-      // es gibt bewusst keine "Ohne Anmeldung fortfahren"-Möglichkeit mehr.
+      // Team-Synchronisierung ist aktiv: ohne Anmeldung startet die App im Lese-Modus (alle Releases
+      // sichtbar, keine Bearbeitung); zum Bearbeiten wird die Anmeldung über das Anmeldefenster verlangt.
       if(ok && currentUser){
         hideAuthGate();
         await initialCloudSync();
+      }else if(ok){
+        hideAuthGate();
+        await enterViewerMode();
       }else{
         showAuthGate();
         if(!ok && signInBtn){
